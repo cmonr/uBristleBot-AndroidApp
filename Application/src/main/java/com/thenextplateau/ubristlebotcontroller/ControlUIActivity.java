@@ -53,6 +53,7 @@ public class ControlUIActivity extends Activity {
 
 
     // uBristleBot Service UUIDs
+    // TODO: Gotta be a better place to put this...
     private static final UUID S_GENERAL_ACCESS = UUID.fromString("00001800-0000-1000-8000-00805f9b34fb");
     private static final UUID S_BATTERY = UUID.fromString("0000180f-0000-1000-8000-00805f9b34fb");
     private static final UUID S_RGB_LED = UUID.fromString("d5d62c0c-6f57-4ac0-bb97-2b694062756e");
@@ -96,6 +97,17 @@ public class ControlUIActivity extends Activity {
             new ArrayList<ArrayList<BluetoothGattCharacteristic>>();
     private boolean mConnected = false;
     private BluetoothGattCharacteristic mNotifyCharacteristic;
+
+    // uBristleBot Characteristics
+    private static BluetoothGattCharacteristic cDeviceName = null;
+    private static BluetoothGattCharacteristic cBattery = null;
+    private static BluetoothGattCharacteristic cLED_R = null;
+    private static BluetoothGattCharacteristic cLED_G = null;
+    private static BluetoothGattCharacteristic cLED_B = null;
+    private static BluetoothGattCharacteristic cMotor_R = null;
+    private static BluetoothGattCharacteristic cMotor_L = null;
+    private static BluetoothGattCharacteristic cSave = null;
+
 
     //
     // Handle BLEService connection
@@ -160,26 +172,31 @@ public class ControlUIActivity extends Activity {
                     // The last service discovered was successfully matched.
 
                     // Populate all characteristics we'll need.
-                    BluetoothGattCharacteristic cDeviceName = services.get(0)
-                            .getCharacteristic(C_DEVICE_NAME);
+                    cDeviceName = services.get(0).getCharacteristic(C_DEVICE_NAME);
+
+                    //cBattery = services.get(1).getCharacteristic(C_BATTERY_PERCENT);
+
+                    //cLED_R = services.get(2).getCharacteristic(C_LED_RED);
+                    //cLED_G = services.get(2).getCharacteristic(C_LED_GREEN);
+                    //cLED_B = services.get(2).getCharacteristic(C_LED_BLUE);
+
+                    cMotor_R = services.get(3).getCharacteristic(C_MOTOR_RIGHT);
+                    cMotor_L = services.get(3).getCharacteristic(C_MOTOR_LEFT);
+
+                    //cSave = services.get(4).getCharacteristic(C_SAVE_CHANGES);
+
 
                     // Device Name String
-                    mBLEService.readCharacteristic(cDeviceName);
-
-                    // LEDs
-                    /*mBLEService.readCharacteristic(new BluetoothGattCharacteristic(C_LED_RED,
-                            BluetoothGattCharacteristic.PROPERTY_READ,
-                            BluetoothGattCharacteristic.PERMISSION_READ | BluetoothGattCharacteristic.PERMISSION_WRITE));
-                    mBLEService.readCharacteristic(new BluetoothGattCharacteristic(C_LED_GREEN,
-                            BluetoothGattCharacteristic.PROPERTY_READ,
-                            BluetoothGattCharacteristic.PERMISSION_READ | BluetoothGattCharacteristic.PERMISSION_WRITE));
-                    mBLEService.readCharacteristic(new BluetoothGattCharacteristic(C_LED_BLUE,
-                            BluetoothGattCharacteristic.PROPERTY_READ,
-                            BluetoothGattCharacteristic.PERMISSION_READ | BluetoothGattCharacteristic.PERMISSION_WRITE));*/
+                    //mBLEService.readCharacteristic(cDeviceName);
 
                     // Battery
-                    //mBLEService.setCharacteristicNotification(new BluetoothGattCharacteristic(C_BATTERY_PERCENT, true));
-                    //mBLEService.readCharacteristic(new BluetoothGattCharacteristic(C_BATTERY_PERCENT));
+                    //mBLEService.readCharacteristic(cBattery);
+                    //mBLEService.setCharacteristicNotification(cBattery, true);
+
+                    // LEDs
+                    //mBLEService.readCharacteristic(cLED_R);
+                    //mBLEService.readCharacteristic(cLED_G);
+                    //mBLEService.readCharacteristic(cLED_B);
 
 
                     // Enable UI Elements
@@ -226,12 +243,12 @@ public class ControlUIActivity extends Activity {
         leftSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                if (fromUser) {
-                    Log.d("L: " + String.valueOf(progress) + "%", TAG);
-
-                    if (mConnected) {
-                        // TODO: sDeviceName.writeToCharacteristic
-                    }
+                if (fromUser && mConnected) {
+                    byte[] value = new byte[1];
+                    value[0] = (byte) ((progress * 255 / 100) & 0xFF);
+                    Log.d(TAG, "L: " + String.valueOf(progress) + "%\t B: " + Integer.toHexString(value[0] & 0xFF));
+                    cMotor_L.setValue(value);
+                    mBLEService.writeCharacteristic(cMotor_L);
                 }
             }
 
@@ -242,7 +259,14 @@ public class ControlUIActivity extends Activity {
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
+                // Update UI
                 seekBar.setProgress(0);
+
+                // Turn off Motor
+                byte[] value = new byte[1];
+                value[0] = 0;
+                cMotor_L.setValue(value);
+                mBLEService.writeCharacteristic(cMotor_L);
             }
         });
 
@@ -250,12 +274,12 @@ public class ControlUIActivity extends Activity {
         rightSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                if (fromUser) {
-                    Log.d("R: " + String.valueOf(progress) + "%", TAG);
-
-                    if (mConnected) {
-                        // TODO: Send BLE Message
-                    }
+                if (fromUser && mConnected) {
+                    byte[] value = new byte[1];
+                    value[0] = (byte) ((progress * 255 / 100) & 0xFF);
+                    Log.d(TAG, "R: " + String.valueOf(progress) + "%  B: " + Integer.toHexString(value[0] & 0xFF));
+                    cMotor_R.setValue(value);
+                    mBLEService.writeCharacteristic(cMotor_R);
                 }
             }
 
@@ -266,7 +290,14 @@ public class ControlUIActivity extends Activity {
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
+                // Update UI
                 seekBar.setProgress(0);
+
+                // Turn off Motor
+                byte[] value = new byte[1];
+                value[0] = 0;
+                cMotor_R.setValue(value);
+                mBLEService.writeCharacteristic(cMotor_R);
             }
         });
 

@@ -22,6 +22,7 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
@@ -32,6 +33,7 @@ import android.os.IBinder;
 import android.util.Log;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Service for managing connection and data communication with a GATT server hosted on a
@@ -58,6 +60,8 @@ public class BLEService extends Service {
             "com.thenextplateau.bluetooth.le.ACTION_GATT_SERVICES_DISCOVERED";
     public final static String ACTION_DATA_AVAILABLE =
             "com.thenextplateau.bluetooth.le.ACTION_DATA_AVAILABLE";
+    public final static String ACTION_DATA_UPDATED =
+            "com.thenextplateau.bluetooth.le.ACTION_DATA_UPDATED";
     public final static String EXTRA_DATA =
             "com.thenextplateau.bluetooth.le.EXTRA_DATA";
 
@@ -105,7 +109,7 @@ public class BLEService extends Service {
         @Override
         public void onCharacteristicChanged(BluetoothGatt gatt,
                                             BluetoothGattCharacteristic characteristic) {
-            broadcastUpdate(ACTION_DATA_AVAILABLE, characteristic);
+            broadcastUpdate(ACTION_DATA_UPDATED, characteristic);
         }
     };
 
@@ -259,6 +263,11 @@ public class BLEService extends Service {
         mBluetoothGatt.readCharacteristic(characteristic);
     }
 
+    /**
+     * TODO
+     * @param characteristic The characteristic to write to
+     * @return If the characteristic was successfully updated
+     */
     public boolean writeCharacteristic(BluetoothGattCharacteristic characteristic) {
         if (mBluetoothAdapter == null || mBluetoothGatt == null) {
             Log.w(TAG, "BluetoothAdapter not initialized");
@@ -281,6 +290,20 @@ public class BLEService extends Service {
             return;
         }
         mBluetoothGatt.setCharacteristicNotification(characteristic, enabled);
+
+        // Reference for magic numbers:
+        //  https://developer.bluetooth.org/gatt/descriptors/Pages/DescriptorViewer.aspx?
+        //  u=org.bluetooth.descriptor.gatt.client_characteristic_configuration.xml
+        BluetoothGattDescriptor descriptor = characteristic.getDescriptor(
+                UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"));
+
+        if (enabled) {
+            descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+        } else {
+            descriptor.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
+        }
+
+        mBluetoothGatt.writeDescriptor(descriptor);
     }
 
     /**

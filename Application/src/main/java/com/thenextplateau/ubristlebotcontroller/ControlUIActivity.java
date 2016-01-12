@@ -38,6 +38,7 @@ import android.widget.TextView;
 
 import org.w3c.dom.Text;
 
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -70,7 +71,7 @@ public class ControlUIActivity extends Activity {
     }
 
     private static final UUID C_DEVICE_NAME = UUID.fromString("00002a00-0000-1000-8000-00805f9b34fb");
-    private static final UUID C_BATTERY_PERCENT = UUID.fromString("00002a19-0000-1000-8000-00805f9b34fb");
+    private static final UUID C_BATTERY = UUID.fromString("00002a19-0000-1000-8000-00805f9b34fb");
     private static final UUID C_LED_RED = UUID.fromString("05664686-5bf2-45a9-83c5-8a927cd2e20c");
     private static final UUID C_LED_GREEN = UUID.fromString("dc203e1a-bfa0-4647-9693-e923b1585cce");
     private static final UUID C_LED_BLUE = UUID.fromString("2aacf813-333d-4b6c-b997-45854b8424b1");
@@ -89,24 +90,39 @@ public class ControlUIActivity extends Activity {
     public static final String EXTRAS_DEVICE_NAME = "DEVICE_NAME";
     public static final String EXTRAS_DEVICE_ADDRESS = "DEVICE_ADDRESS";
 
-    // BLE variables
+    // BLE Management
+    private BLEService mBLEService;
+    private boolean mConnected = false;
     private String mDeviceName = "";
     private String mDeviceAddress;
-    private BLEService mBLEService;
-    private ArrayList<ArrayList<BluetoothGattCharacteristic>> mGattCharacteristics =
-            new ArrayList<ArrayList<BluetoothGattCharacteristic>>();
-    private boolean mConnected = false;
-    private BluetoothGattCharacteristic mNotifyCharacteristic;
 
-    // uBristleBot Characteristics
+    // uBristleBot Variables
+    private byte mBatteryLeft;
+    private byte[] mRGB = new byte[3];
+
+
+    // Control which Characteristic is being read
+    private static final int REQUESTED_NOTHING = 0;
+    private static final int REQUESTED_C_DEVICE_NAME = 1;
+    private static final int REQUESTED_C_BATTERY = 2;
+    private static final int REQUESTED_C_LED_RED = 3;
+    private static final int REQUESTED_C_LED_GREEN = 4;
+    private static final int REQUESTED_C_LED_BLUE = 5;
+    private static int lastCharacteristicRequested = REQUESTED_NOTHING;
+
+    // BLE Characteristics
     private static BluetoothGattCharacteristic cDeviceName = null;
     private static BluetoothGattCharacteristic cBattery = null;
     private static BluetoothGattCharacteristic cLED_R = null;
     private static BluetoothGattCharacteristic cLED_G = null;
     private static BluetoothGattCharacteristic cLED_B = null;
-    private static BluetoothGattCharacteristic cMotor_R = null;
     private static BluetoothGattCharacteristic cMotor_L = null;
+    private static BluetoothGattCharacteristic cMotor_R = null;
     private static BluetoothGattCharacteristic cSave = null;
+
+    // Control timing of Motor BLE Write CMDs
+    private static long lastCmd_MotorL;
+    private static long lastCmd_MotorR;
 
 
     //
@@ -174,36 +190,26 @@ public class ControlUIActivity extends Activity {
                     // Populate all characteristics we'll need.
                     cDeviceName = services.get(0).getCharacteristic(C_DEVICE_NAME);
 
-                    //cBattery = services.get(1).getCharacteristic(C_BATTERY_PERCENT);
+                    cBattery = services.get(1).getCharacteristic(C_BATTERY);
 
-                    //cLED_R = services.get(2).getCharacteristic(C_LED_RED);
-                    //cLED_G = services.get(2).getCharacteristic(C_LED_GREEN);
-                    //cLED_B = services.get(2).getCharacteristic(C_LED_BLUE);
+                    cLED_R = services.get(2).getCharacteristic(C_LED_RED);
+                    cLED_G = services.get(2).getCharacteristic(C_LED_GREEN);
+                    cLED_B = services.get(2).getCharacteristic(C_LED_BLUE);
 
-                    cMotor_R = services.get(3).getCharacteristic(C_MOTOR_RIGHT);
                     cMotor_L = services.get(3).getCharacteristic(C_MOTOR_LEFT);
+                    cMotor_R = services.get(3).getCharacteristic(C_MOTOR_RIGHT);
 
-                    //cSave = services.get(4).getCharacteristic(C_SAVE_CHANGES);
-
-
-                    // Device Name String
-                    //mBLEService.readCharacteristic(cDeviceName);
-
-                    // Battery
-                    //mBLEService.readCharacteristic(cBattery);
-                    //mBLEService.setCharacteristicNotification(cBattery, true);
-
-                    // LEDs
-                    //mBLEService.readCharacteristic(cLED_R);
-                    //mBLEService.readCharacteristic(cLED_G);
-                    //mBLEService.readCharacteristic(cLED_B);
-
+                    cSave = services.get(4).getCharacteristic(C_SAVE_CHANGES);
 
                     // Enable UI Elements
                     leftSeekbar.setEnabled(true);
                     rightSeekbar.setEnabled(true);
                     textIcon.setLongClickable(true);
                     ledIcon.setLongClickable(true);
+
+                    // Start requesting values, starting with the Device Name String
+                    mBLEService.readCharacteristic(cDeviceName);
+                    lastCharacteristicRequested = REQUESTED_C_DEVICE_NAME;
                 } else {
                     // Not a uBristleBot
                      mBLEService.disconnect();
@@ -212,14 +218,61 @@ public class ControlUIActivity extends Activity {
                     onBackPressed();
                 }
             } else if (BLEService.ACTION_DATA_AVAILABLE.equals(action)) {
-                //displayData(intent.getStringExtra(BLEService.EXTRA_DATA));
+                // Determine what data we're receiving, and act/save appropriately
+                switch(lastCharacteristicRequested) {
+                    case REQUESTED_C_DEVICE_NAME:
+                        // TODO: Update UI
+                        mDeviceName = intent.getStringExtra(BLEService.EXTRA_DATA);
 
-                // TODO: Switch data depending on service
-                // Read Device Name
-                // Notify on Battery Change
-                // Read LEDs
+                        mBLEService.readCharacteristic(cBattery);
+                        lastCharacteristicRequested = REQUESTED_C_BATTERY;
+                        break;
+                    case REQUESTED_C_BATTERY:
+                        // TODO: Update UI
+                        mBatteryLeft = intent.getByteExtra(BLEService.EXTRA_DATA);
+                        Log.d(TAG, String.valueOf(mBatteryLeft));
 
-                Log.i(TAG, intent.getStringExtra(BLEService.EXTRA_DATA));
+                        mBLEService.readCharacteristic(cLED_R);
+                        lastCharacteristicRequested = REQUESTED_C_LED_RED;
+                        break;
+                    case REQUESTED_C_LED_RED:
+                        mRGB[0] = intent.getByteExtra(BLEService.EXTRA_DATA);
+                        Log.d(TAG, String.valueOf(mRGB[0]));
+
+                        mBLEService.readCharacteristic(cLED_G);
+                        lastCharacteristicRequested = REQUESTED_C_LED_GREEN;
+                        break;
+                    case REQUESTED_C_LED_GREEN:
+                        mRGB[1] = intent.getByteExtra(BLEService.EXTRA_DATA);
+                        Log.d(TAG, String.valueOf(mRGB[1]));
+
+                        mBLEService.readCharacteristic(cLED_B);
+                        lastCharacteristicRequested = REQUESTED_C_LED_BLUE;
+                        break;
+                    case REQUESTED_C_LED_BLUE:
+                        // TODO: Update UI
+                        //  LED Icon
+                        mRGB[2] = intent.getByteExtra(BLEService.EXTRA_DATA);
+                        Log.d(TAG, String.valueOf(mRGB[2]));
+
+
+                        lastCharacteristicRequested = REQUESTED_NOTHING;
+
+                        // Now that we're done, lets start streaming battery info
+                        mBLEService.setCharacteristicNotification(cBattery, true);
+                        break;
+                    case REQUESTED_NOTHING:
+                        // Wat.
+                    default:
+                        Log.d(TAG, "Somehow, lastCharacteristicRequested got borked.");
+                }
+
+                Log.i(TAG, "Data: " + intent.getStringExtra(BLEService.EXTRA_DATA));
+            } else if (BLEService.ACTION_DATA_UPDATED.equals(action)) {
+                // Battery information was updated
+                // TODO: Update UI
+
+                //Log.i(TAG, "Battery: " + intent.getStringExtra(BLEService.EXTRA_DATA) + "%");
             }
         }
     };
@@ -243,12 +296,17 @@ public class ControlUIActivity extends Activity {
         leftSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                if (fromUser && mConnected) {
+                // Only send command if we're connected, the user moved the slider, and
+                //  the time since the last command sent >= 100ms
+                if (fromUser && mConnected && System.currentTimeMillis() >= lastCmd_MotorL + 100) {
                     byte[] value = new byte[1];
                     value[0] = (byte) ((progress * 255 / 100) & 0xFF);
                     Log.d(TAG, "L: " + String.valueOf(progress) + "%\t B: " + Integer.toHexString(value[0] & 0xFF));
                     cMotor_L.setValue(value);
                     mBLEService.writeCharacteristic(cMotor_L);
+
+                    // Set the new time since the last command sent
+                    lastCmd_MotorL = System.currentTimeMillis();
                 }
             }
 
@@ -267,6 +325,9 @@ public class ControlUIActivity extends Activity {
                 value[0] = 0;
                 cMotor_L.setValue(value);
                 mBLEService.writeCharacteristic(cMotor_L);
+
+                // Send it twice, just in case
+                mBLEService.writeCharacteristic(cMotor_L);
             }
         });
 
@@ -274,12 +335,17 @@ public class ControlUIActivity extends Activity {
         rightSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                if (fromUser && mConnected) {
+                // Only send command if we're connected, the user moved the slider, and
+                //  the time since the last command sent >= 100ms
+                if (fromUser && mConnected && System.currentTimeMillis() >= lastCmd_MotorR + 100) {
                     byte[] value = new byte[1];
                     value[0] = (byte) ((progress * 255 / 100) & 0xFF);
                     Log.d(TAG, "R: " + String.valueOf(progress) + "%  B: " + Integer.toHexString(value[0] & 0xFF));
                     cMotor_R.setValue(value);
                     mBLEService.writeCharacteristic(cMotor_R);
+
+                    // Set the new time since the last command sent
+                    lastCmd_MotorR = System.currentTimeMillis();
                 }
             }
 
@@ -297,6 +363,9 @@ public class ControlUIActivity extends Activity {
                 byte[] value = new byte[1];
                 value[0] = 0;
                 cMotor_R.setValue(value);
+                mBLEService.writeCharacteristic(cMotor_R);
+
+                // Send it twice, just in case
                 mBLEService.writeCharacteristic(cMotor_R);
             }
         });
@@ -324,6 +393,11 @@ public class ControlUIActivity extends Activity {
                 return true;
             }
         });
+
+
+        // Initialize Motor Commands time delay
+        lastCmd_MotorR = System.currentTimeMillis();
+        lastCmd_MotorL = System.currentTimeMillis();
 
         getActionBar().setTitle(mDeviceName);
         getActionBar().setDisplayHomeAsUpEnabled(true);
@@ -393,6 +467,7 @@ public class ControlUIActivity extends Activity {
         intentFilter.addAction(BLEService.ACTION_GATT_DISCONNECTED);
         intentFilter.addAction(BLEService.ACTION_GATT_SERVICES_DISCOVERED);
         intentFilter.addAction(BLEService.ACTION_DATA_AVAILABLE);
+        intentFilter.addAction(BLEService.ACTION_DATA_UPDATED);
         return intentFilter;
     }
 }

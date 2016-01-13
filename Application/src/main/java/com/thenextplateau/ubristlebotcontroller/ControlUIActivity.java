@@ -222,29 +222,30 @@ public class ControlUIActivity extends Activity {
                 switch(lastCharacteristicRequested) {
                     case REQUESTED_C_DEVICE_NAME:
                         // TODO: Update UI
-                        mDeviceName = intent.getStringExtra(BLEService.EXTRA_DATA);
+                        mDeviceName = new String(intent.getByteArrayExtra(BLEService.EXTRA_DATA));
+                        Log.d(TAG, mDeviceName);
 
                         mBLEService.readCharacteristic(cBattery);
                         lastCharacteristicRequested = REQUESTED_C_BATTERY;
                         break;
                     case REQUESTED_C_BATTERY:
                         // TODO: Update UI
-                        mBatteryLeft = intent.getByteExtra(BLEService.EXTRA_DATA);
+                        mBatteryLeft = intent.getByteArrayExtra(BLEService.EXTRA_DATA)[0];
                         Log.d(TAG, String.valueOf(mBatteryLeft));
 
                         mBLEService.readCharacteristic(cLED_R);
                         lastCharacteristicRequested = REQUESTED_C_LED_RED;
                         break;
                     case REQUESTED_C_LED_RED:
-                        mRGB[0] = intent.getByteExtra(BLEService.EXTRA_DATA);
-                        Log.d(TAG, String.valueOf(mRGB[0]));
+                        mRGB[0] = intent.getByteArrayExtra(BLEService.EXTRA_DATA)[0];
+                        Log.d(TAG, String.valueOf(mRGB[0] & 0xFF));
 
                         mBLEService.readCharacteristic(cLED_G);
                         lastCharacteristicRequested = REQUESTED_C_LED_GREEN;
                         break;
                     case REQUESTED_C_LED_GREEN:
-                        mRGB[1] = intent.getByteExtra(BLEService.EXTRA_DATA);
-                        Log.d(TAG, String.valueOf(mRGB[1]));
+                        mRGB[1] = intent.getByteArrayExtra(BLEService.EXTRA_DATA)[0];
+                        Log.d(TAG, String.valueOf(mRGB[1] & 0xFF));
 
                         mBLEService.readCharacteristic(cLED_B);
                         lastCharacteristicRequested = REQUESTED_C_LED_BLUE;
@@ -252,8 +253,8 @@ public class ControlUIActivity extends Activity {
                     case REQUESTED_C_LED_BLUE:
                         // TODO: Update UI
                         //  LED Icon
-                        mRGB[2] = intent.getByteExtra(BLEService.EXTRA_DATA);
-                        Log.d(TAG, String.valueOf(mRGB[2]));
+                        mRGB[2] = intent.getByteArrayExtra(BLEService.EXTRA_DATA)[0];
+                        Log.d(TAG, String.valueOf(mRGB[2] & 0xFF));
 
 
                         lastCharacteristicRequested = REQUESTED_NOTHING;
@@ -267,7 +268,7 @@ public class ControlUIActivity extends Activity {
                         Log.d(TAG, "Somehow, lastCharacteristicRequested got borked.");
                 }
 
-                Log.i(TAG, "Data: " + intent.getStringExtra(BLEService.EXTRA_DATA));
+                Log.i(TAG, "Data: " + new String(intent.getByteArrayExtra(BLEService.EXTRA_DATA)));
             } else if (BLEService.ACTION_DATA_UPDATED.equals(action)) {
                 // Battery information was updated
                 // TODO: Update UI

@@ -17,11 +17,14 @@
 package com.thenextplateau.ubristlebotcontroller;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.app.Dialog;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattService;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
@@ -32,6 +35,7 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.Button;
 import android.widget.ExpandableListView;
 import android.widget.SeekBar;
 import android.widget.TextView;
@@ -44,6 +48,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.ResourceBundle;
 import java.util.UUID;
 
 /**
@@ -97,8 +102,8 @@ public class ControlUIActivity extends Activity {
     private String mDeviceAddress;
 
     // uBristleBot Variables
-    private byte mBatteryLeft;
-    private byte[] mRGB = new byte[3];
+    private int mBatteryLeft;
+    private int[] mRGB = new int[3];
 
 
     // Control which Characteristic is being read
@@ -123,6 +128,10 @@ public class ControlUIActivity extends Activity {
     // Control timing of Motor BLE Write CMDs
     private static long lastCmd_MotorL;
     private static long lastCmd_MotorR;
+
+    // Dialogs
+    private static AlertDialog mDialog_DeviceName;
+    private static AlertDialog mDialog_LEDs;
 
 
     //
@@ -230,32 +239,33 @@ public class ControlUIActivity extends Activity {
                         break;
                     case REQUESTED_C_BATTERY:
                         // TODO: Update UI
-                        mBatteryLeft = intent.getByteArrayExtra(BLEService.EXTRA_DATA)[0];
+                        mBatteryLeft = intent.getByteArrayExtra(BLEService.EXTRA_DATA)[0] & 0xFF;
                         Log.d(TAG, String.valueOf(mBatteryLeft));
 
                         mBLEService.readCharacteristic(cLED_R);
                         lastCharacteristicRequested = REQUESTED_C_LED_RED;
                         break;
                     case REQUESTED_C_LED_RED:
-                        mRGB[0] = intent.getByteArrayExtra(BLEService.EXTRA_DATA)[0];
-                        Log.d(TAG, String.valueOf(mRGB[0] & 0xFF));
+                        mRGB[0] = intent.getByteArrayExtra(BLEService.EXTRA_DATA)[0] & 0xFF;
+                        Log.d(TAG, String.valueOf(mRGB[0]));
 
                         mBLEService.readCharacteristic(cLED_G);
                         lastCharacteristicRequested = REQUESTED_C_LED_GREEN;
                         break;
                     case REQUESTED_C_LED_GREEN:
-                        mRGB[1] = intent.getByteArrayExtra(BLEService.EXTRA_DATA)[0];
-                        Log.d(TAG, String.valueOf(mRGB[1] & 0xFF));
+                        mRGB[1] = intent.getByteArrayExtra(BLEService.EXTRA_DATA)[0] & 0xFF;
+                        Log.d(TAG, String.valueOf(mRGB[1]));
 
                         mBLEService.readCharacteristic(cLED_B);
                         lastCharacteristicRequested = REQUESTED_C_LED_BLUE;
                         break;
                     case REQUESTED_C_LED_BLUE:
+                        mRGB[2] = intent.getByteArrayExtra(BLEService.EXTRA_DATA)[0] & 0xFF;
+                        Log.d(TAG, String.valueOf(mRGB[2]));
+
+
                         // TODO: Update UI
                         //  LED Icon
-                        mRGB[2] = intent.getByteArrayExtra(BLEService.EXTRA_DATA)[0];
-                        Log.d(TAG, String.valueOf(mRGB[2] & 0xFF));
-
 
                         lastCharacteristicRequested = REQUESTED_NOTHING;
 
@@ -375,10 +385,7 @@ public class ControlUIActivity extends Activity {
         textIcon.setOnLongClickListener(new View.OnLongClickListener() {
             @Override
             public boolean onLongClick(View v) {
-                Log.i(TAG, "Name Icon was Long Pressed.");
-
-                // TODO: Launch Text Dialog
-
+                mDialog_DeviceName.show();
                 return true;
             }
         });
@@ -387,18 +394,40 @@ public class ControlUIActivity extends Activity {
         ledIcon.setOnLongClickListener(new View.OnLongClickListener() {
             @Override
             public boolean onLongClick(View v) {
-                Log.i(TAG, "LED Icon was Long Pressed.");
-
-                // TODO: Launch Color Picker Dialog
-
+                mDialog_LEDs.show();
                 return true;
             }
         });
+
+        // Dialogs
+        mDialog_DeviceName = new AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+            .setTitle(R.string.dialog_title_device_name)
+                .setView(this.getLayoutInflater().inflate(R.layout.dialog_device_name, null))
+                .setPositiveButton(R.string.set, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                        // TODO: Write new Device Name
+                    }
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .create();
+
+
+        mDialog_LEDs = new AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                .setTitle(R.string.dialog_title_leds)
+                .setView(this.getLayoutInflater().inflate(R.layout.dialog_leds, null))
+                .setPositiveButton(R.string.set, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                        // TODO: Write new LED Colors
+                    }
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .create();
 
 
         // Initialize Motor Commands time delay
         lastCmd_MotorR = System.currentTimeMillis();
         lastCmd_MotorL = System.currentTimeMillis();
+
 
         getActionBar().setTitle(mDeviceName);
         getActionBar().setDisplayHomeAsUpEnabled(true);

@@ -41,19 +41,6 @@
         android:paddingTop="20dp"
         android:paddingBottom="20dp">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textAppearance="?android:attr/textAppearanceLarge"
-            android:text="N"
-            android:id="@+id/name_icon"
-            android:layout_gravity="center_horizontal|top"
-            android:textStyle="bold"
-            android:typeface="serif"
-            android:textSize="40dp"
-            android:longClickable="false"
-            android:clickable="true" />
-
         <View
             android:layout_width="50dp"
             android:layout_height="50dp"

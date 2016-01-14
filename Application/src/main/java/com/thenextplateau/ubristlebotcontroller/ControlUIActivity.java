@@ -18,7 +18,6 @@ package com.thenextplateau.ubristlebotcontroller;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.app.Dialog;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattService;
 import android.content.BroadcastReceiver;
@@ -30,25 +29,16 @@ import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.support.annotation.NonNull;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.Button;
-import android.widget.ExpandableListView;
+import android.widget.ArrayAdapter;
 import android.widget.SeekBar;
-import android.widget.TextView;
+import android.widget.Spinner;
 
-import org.w3c.dom.Text;
-
-import java.lang.reflect.Array;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
-import java.util.ResourceBundle;
 import java.util.UUID;
 
 /**
@@ -88,7 +78,6 @@ public class ControlUIActivity extends Activity {
     // UI Elements
     private SeekBar rightSeekbar;
     private SeekBar leftSeekbar;
-    private TextView textIcon;
     private View ledIcon;
 
     // Intent Filters
@@ -131,7 +120,7 @@ public class ControlUIActivity extends Activity {
 
     // Dialogs
     private static AlertDialog mDialog_DeviceName;
-    private static AlertDialog mDialog_LEDs;
+    private static AlertDialog mDialog_Settings;
 
 
     //
@@ -180,7 +169,6 @@ public class ControlUIActivity extends Activity {
                 // Disable UI Elements
                 leftSeekbar.setEnabled(false);
                 rightSeekbar.setEnabled(false);
-                textIcon.setLongClickable(false);
                 ledIcon.setLongClickable(false);
 
                 // TODO: Show Dialog requesting reconnect
@@ -213,7 +201,6 @@ public class ControlUIActivity extends Activity {
                     // Enable UI Elements
                     leftSeekbar.setEnabled(true);
                     rightSeekbar.setEnabled(true);
-                    textIcon.setLongClickable(true);
                     ledIcon.setLongClickable(true);
 
                     // Start requesting values, starting with the Device Name String
@@ -381,47 +368,35 @@ public class ControlUIActivity extends Activity {
             }
         });
 
-        textIcon = (TextView) findViewById(R.id.name_icon);
-        textIcon.setOnLongClickListener(new View.OnLongClickListener() {
-            @Override
-            public boolean onLongClick(View v) {
-                mDialog_DeviceName.show();
-                return true;
-            }
-        });
-
         ledIcon = findViewById(R.id.led_icon);
         ledIcon.setOnLongClickListener(new View.OnLongClickListener() {
             @Override
             public boolean onLongClick(View v) {
-                mDialog_LEDs.show();
+                mDialog_Settings.show();
                 return true;
             }
         });
 
+
         // Dialogs
-        mDialog_DeviceName = new AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle(R.string.dialog_title_device_name)
-                .setView(this.getLayoutInflater().inflate(R.layout.dialog_device_name, null))
+        View mDialogView = this.getLayoutInflater().inflate(R.layout.dialog_settings, null);
+        mDialog_Settings = new AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                .setView(mDialogView)
                 .setPositiveButton(R.string.set, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int which) {
-                        // TODO: Write new Device Name
+                        // TODO: Write new LED Colors and Device Name
+
                     }
                 })
                 .setNegativeButton(R.string.cancel, null)
                 .create();
 
 
-        mDialog_LEDs = new AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-                .setTitle(R.string.dialog_title_leds)
-                .setView(this.getLayoutInflater().inflate(R.layout.dialog_leds, null))
-                .setPositiveButton(R.string.set, new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int which) {
-                        // TODO: Write new LED Colors
-                    }
-                })
-                .setNegativeButton(R.string.cancel, null)
-                .create();
+        Spinner spinner = (Spinner) mDialogView.findViewById(R.id.color_dropdown);
+
+        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(mDialogView.getContext(),
+                R.array.led_colors, android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(adapter);
 
 
         // Initialize Motor Commands time delay

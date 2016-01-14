@@ -34,10 +34,8 @@
     <string name="motor_right">Right Motor</string>
     <string name="motor_left">Left Motor</string>
 
-    <!-- Dialogs -->
+    <!-- Dialog -->
     <string name="set">Set</string>
     <string name="cancel">Cancel</string>
-    <string name="dialog_title_device_name">Device Name</string>
-    <string name="dialog_title_leds">LED Color</string>
 
 </resources>

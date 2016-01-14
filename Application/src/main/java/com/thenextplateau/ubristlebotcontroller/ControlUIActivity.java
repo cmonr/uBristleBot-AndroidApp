@@ -36,6 +36,7 @@ import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.SeekBar;
 import android.widget.Spinner;
+import android.widget.TextView;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -119,8 +120,10 @@ public class ControlUIActivity extends Activity {
     private static long lastCmd_MotorR;
 
     // Dialogs
-    private static AlertDialog mDialog_DeviceName;
     private static AlertDialog mDialog_Settings;
+    private static View mDialog_View;
+    private static TextView mDialog_Text_DeviceName;
+    private static Spinner mDialog_ColorChooser;
 
 
     //
@@ -223,6 +226,10 @@ public class ControlUIActivity extends Activity {
 
                         mBLEService.readCharacteristic(cBattery);
                         lastCharacteristicRequested = REQUESTED_C_BATTERY;
+
+                        // Set Name in Settings Dialog
+                        mDialog_Text_DeviceName.setText(mDeviceName);
+
                         break;
                     case REQUESTED_C_BATTERY:
                         // TODO: Update UI
@@ -378,25 +385,29 @@ public class ControlUIActivity extends Activity {
         });
 
 
-        // Dialogs
-        View mDialogView = this.getLayoutInflater().inflate(R.layout.dialog_settings, null);
+        // Setup Settings Dialog
+        mDialog_View = this.getLayoutInflater().inflate(R.layout.dialog_settings, null);
         mDialog_Settings = new AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-                .setView(mDialogView)
+                .setView(mDialog_View)
                 .setPositiveButton(R.string.set, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int which) {
-                        // TODO: Write new LED Colors and Device Name
+                        if (!mDialog_Text_DeviceName.getText().toString().equals(mDeviceName)) {
+                            // TODO: Write new Device Name
+                        }
+
 
                     }
                 })
                 .setNegativeButton(R.string.cancel, null)
                 .create();
 
+        mDialog_Text_DeviceName = (TextView) mDialog_View.findViewById(R.id.text_device_name);
 
-        Spinner spinner = (Spinner) mDialogView.findViewById(R.id.color_dropdown);
-
-        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(mDialogView.getContext(),
+        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(mDialog_View.getContext(),
                 R.array.led_colors, android.R.layout.simple_spinner_dropdown_item);
-        spinner.setAdapter(adapter);
+        mDialog_ColorChooser = (Spinner) mDialog_View.findViewById(R.id.color_dropdown);
+        mDialog_ColorChooser.setAdapter(adapter);
+
 
 
         // Initialize Motor Commands time delay

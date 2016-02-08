@@ -25,10 +25,7 @@
     <string name="unknown_device">Unknown device</string>
 
     <!-- Menu Items -->
-    <string name="menu_connect">Connect</string>
-    <string name="menu_disconnect">Disconnect</string>
     <string name="menu_rescan">Rescan</string>
-    <string name="menu_stop">Stop</string>
 
     <!-- UI Elements -->
     <string name="motor_right">Right Motor</string>

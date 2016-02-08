@@ -14,17 +14,8 @@
      limitations under the License.
 -->
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:title=""
-          android:id="@+id/menu_refresh"
-          android:checkable="false"
-          android:orderInCategory="1"
-          android:showAsAction="ifRoom"/>
-    <item android:id="@+id/menu_connect"
-          android:title="@string/menu_connect"
-          android:orderInCategory="100"
-          android:showAsAction="ifRoom|withText"/>
-    <item android:id="@+id/menu_disconnect"
-        android:title="@string/menu_disconnect"
-          android:orderInCategory="101"
-          android:showAsAction="ifRoom|withText"/>
+    <item android:title="Rescan"
+        android:id="@+id/menu_rescan"
+        android:icon="@drawable/ic_refresh_white_36dp"
+        android:showAsAction="ifRoom"/>
 </menu>

@@ -18,6 +18,7 @@ package com.thenextplateau.ubristlebotcontroller;
 
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothClass;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -43,6 +44,7 @@ import android.widget.TextView;
 
 
 import java.util.ArrayList;
+import java.util.ResourceBundle;
 
 /*
  Activity Flow:
@@ -87,6 +89,7 @@ public class DeviceScanActivity extends AppCompatActivity {
                 // TODO: Display useful message to user
 
                 finish();
+                return;
             }
 
             // Start scan on connection
@@ -122,15 +125,17 @@ public class DeviceScanActivity extends AppCompatActivity {
                 mRefreshLayout.setRefreshing(false);
 
             } else if (uBristleBotService.ACTION_CONNECTED.equals(action)) {
-                // TODO: Launch UI Control Activity
-
                 Snackbar snackbar = Snackbar.make(
                         mRefreshLayout,
                         "WE CONNECTED!",
                         Snackbar.LENGTH_SHORT);
                 snackbar.show();
 
-                uBristleBot.disconnect();
+
+                startDeviceScan(false);
+
+                // Launch Control UI
+                startActivity(new Intent(DeviceScanActivity.this, ControlUIActivity.class));
 
             } else if (uBristleBotService.ACTION_CONNECT_FAILED.equals(action)) {
                 Snackbar snackbar = Snackbar.make(

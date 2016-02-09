@@ -20,26 +20,29 @@
     android:layout_margin="10dp"
     android:orientation="horizontal"
     android:baselineAligned="true"
-    android:padding="20dp">
+    android:padding="10dp">
 
     <com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBarWrapper
         android:layout_width="wrap_content"
         android:layout_height="fill_parent"
-        android:layout_weight="1">
+        android:layout_weight="1"
+        android:layout_marginBottom="20dp">
         <com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBar
             android:id="@+id/motor_left"
             android:layout_width="0dp"
             android:layout_height="0dp"
             android:enabled="false"
             app:seekBarRotation="CW270"
-            android:progress="0" /> <!-- Rotation: CW90 or CW270 -->
+            android:progress="0"
+            android:padding="48dp" /> <!-- Rotation: CW90 or CW270 -->
     </com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBarWrapper>
 
     <FrameLayout
         android:layout_width="wrap_content"
         android:layout_height="match_parent"
         android:paddingTop="20dp"
-        android:paddingBottom="20dp">
+        android:paddingBottom="20dp"
+        android:layout_marginBottom="20dp">
 
         <View
             android:layout_width="50dp"
@@ -57,7 +60,8 @@
     <com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBarWrapper
         android:layout_width="wrap_content"
         android:layout_height="fill_parent"
-        android:layout_weight="1">
+        android:layout_weight="1"
+        android:layout_marginBottom="20dp">
         <com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBar
             android:id="@+id/motor_right"
             android:layout_width="0dp"
@@ -65,7 +69,8 @@
             android:enabled="false"
             app:seekBarRotation="CW270"
             android:hapticFeedbackEnabled="true"
-            android:progress="0" /> <!-- Rotation: CW90 or CW270 -->
+            android:progress="0"
+            android:padding="48dp" /> <!-- Rotation: CW90 or CW270 -->
     </com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBarWrapper>
 
 </LinearLayout>

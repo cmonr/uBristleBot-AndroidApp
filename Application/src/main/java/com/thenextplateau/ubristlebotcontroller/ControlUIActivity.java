@@ -18,8 +18,6 @@ package com.thenextplateau.ubristlebotcontroller;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.bluetooth.BluetoothGattCharacteristic;
-import android.bluetooth.BluetoothGattService;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -30,17 +28,11 @@ import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
 
 /**
  * TODO: Fill this out...
@@ -48,32 +40,8 @@ import java.util.UUID;
 public class ControlUIActivity extends Activity {
     private static final String TAG = ControlUIActivity.class.getSimpleName();
 
-/*
-    // uBristleBot Service UUIDs
-    // TODO: Gotta be a better place to put this...
-    private static final UUID S_GENERAL_ACCESS = UUID.fromString("00001800-0000-1000-8000-00805f9b34fb");
-    private static final UUID S_BATTERY = UUID.fromString("0000180f-0000-1000-8000-00805f9b34fb");
-    private static final UUID S_RGB_LED = UUID.fromString("d5d62c0c-6f57-4ac0-bb97-2b694062756e");
-    private static final UUID S_MOTORS = UUID.fromString("b8578989-149c-4849-91f0-2852935b1a86");
-    private static final UUID S_SAVE_SETTNGS = UUID.fromString("29f0dcfe-bebe-4348-9631-5fbd8e7fcb79");
+    private uBristleBotService uBristleBot;
 
-    private static List<UUID> uBristleBotServices = new ArrayList<>();
-    static {
-        uBristleBotServices.add(S_GENERAL_ACCESS);
-        uBristleBotServices.add(S_BATTERY);
-        uBristleBotServices.add(S_RGB_LED);
-        uBristleBotServices.add(S_MOTORS);
-        uBristleBotServices.add(S_SAVE_SETTNGS);
-    }
-
-    private static final UUID C_DEVICE_NAME = UUID.fromString("00002a00-0000-1000-8000-00805f9b34fb");
-    private static final UUID C_BATTERY = UUID.fromString("00002a19-0000-1000-8000-00805f9b34fb");
-    private static final UUID C_LED_RED = UUID.fromString("05664686-5bf2-45a9-83c5-8a927cd2e20c");
-    private static final UUID C_LED_GREEN = UUID.fromString("dc203e1a-bfa0-4647-9693-e923b1585cce");
-    private static final UUID C_LED_BLUE = UUID.fromString("2aacf813-333d-4b6c-b997-45854b8424b1");
-    private static final UUID C_MOTOR_LEFT = UUID.fromString("03957515-5976-41c3-982a-56cb6c4b4a38");
-    private static final UUID C_MOTOR_RIGHT = UUID.fromString("537ef040-0e23-4fdc-80eb-eedd837ad98f");
-    private static final UUID C_SAVE_CHANGES = UUID.fromString("a0632df5-f8ad-401b-9f0f-80fd1f43edf3");
 
 
     // UI Elements
@@ -86,14 +54,6 @@ public class ControlUIActivity extends Activity {
     public static final String EXTRAS_DEVICE_ADDRESS = "DEVICE_ADDRESS";
 
     // BLE Management
-    private uBristleBotService mUBristleBotService;
-    private boolean mConnected = false;
-    private String mDeviceName = "";
-    private String mDeviceAddress;
-
-    // uBristleBot Variables
-    private int mBatteryLeft;
-    private int[] mRGB = new int[3];
 
 
     // Control which Characteristic is being read
@@ -104,20 +64,6 @@ public class ControlUIActivity extends Activity {
     private static final int REQUESTED_C_LED_GREEN = 4;
     private static final int REQUESTED_C_LED_BLUE = 5;
     private static int lastCharacteristicRequested = REQUESTED_NOTHING;
-
-    // BLE Characteristics
-    private static BluetoothGattCharacteristic cDeviceName = null;
-    private static BluetoothGattCharacteristic cBattery = null;
-    private static BluetoothGattCharacteristic cLED_R = null;
-    private static BluetoothGattCharacteristic cLED_G = null;
-    private static BluetoothGattCharacteristic cLED_B = null;
-    private static BluetoothGattCharacteristic cMotor_L = null;
-    private static BluetoothGattCharacteristic cMotor_R = null;
-    private static BluetoothGattCharacteristic cSave = null;
-
-    // Control timing of Motor BLE Write CMDs
-    private static long lastCmd_MotorL;
-    private static long lastCmd_MotorR;
 
     // Dialogs
     private static AlertDialog mDialog_Settings;
@@ -133,18 +79,30 @@ public class ControlUIActivity extends Activity {
 
         @Override
         public void onServiceConnected(ComponentName componentName, IBinder service) {
-            mUBristleBotService = ((uBristleBotService.LocalBinder) service).getService();
-            if (!mUBristleBotService.initialize()) {
-                Log.e(TAG, "Unable to initialize Bluetooth");
-                finish();
+            uBristleBot = ((uBristleBotService.LocalBinder) service).getService();
+            if (uBristleBot.initialize() !=uBristleBotService.INIT_ERROR_NONE) {
+                Log.e(TAG, "Unable to initialize uBristleBotService");
+
+                // TODO: Display useful message to user
+
+                onBackPressed();
+                return;
             }
-            // Automatically connects to the device upon successful start-up initialization.
-            mUBristleBotService.connect(mDeviceAddress);
+
+            if (! uBristleBot.isConnected()) {
+                Log.e(TAG, "uBristleBotService not connected to device");
+
+
+                // TODO: Display useful message to user
+
+                onBackPressed();
+                return;
+            }
         }
 
         @Override
         public void onServiceDisconnected(ComponentName componentName) {
-            mUBristleBotService = null;
+            uBristleBot = null;
         }
     };
 
@@ -154,11 +112,11 @@ public class ControlUIActivity extends Activity {
     // ACTION_GATT_SERVICES_DISCOVERED: discovered GATT services.
     // ACTION_DATA_AVAILABLE: received data from the device.  This can be a result of read
     //                        or notification operations.
-    private final BroadcastReceiver mGattUpdateReceiver = new BroadcastReceiver() {
+    private final BroadcastReceiver mUpdateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             final String action = intent.getAction();
-
+/*
             if (uBristleBotService.ACTION_GATT_CONNECTED.equals(action)) {
                 // Connected to uBristleBot
                 mConnected = true;
@@ -182,7 +140,7 @@ public class ControlUIActivity extends Activity {
 
             } else if (uBristleBotService.ACTION_GATT_SERVICES_DISCOVERED.equals(action)) {
                 // Check list of services discovered against those expected for a uBristleBot
-                List<BluetoothGattService> services = mUBristleBotService.getSupportedGattServices();
+                List<BluetoothGattService> services = uBristleBot.getSupportedGattServices();
 
                 if (services.get(services.size() - 1).getUuid().equals(S_SAVE_SETTNGS)) {
                     // The last service discovered was successfully matched.
@@ -207,11 +165,11 @@ public class ControlUIActivity extends Activity {
                     ledIcon.setLongClickable(true);
 
                     // Start requesting values, starting with the Device Name String
-                    mUBristleBotService.readCharacteristic(cDeviceName);
+                    uBristleBot.readCharacteristic(cDeviceName);
                     lastCharacteristicRequested = REQUESTED_C_DEVICE_NAME;
                 } else {
                     // Not a uBristleBot
-                     mUBristleBotService.disconnect();
+                     uBristleBot.disconnect();
 
                     //TODO: Show that device was not a uBristleBot
                     onBackPressed();
@@ -224,7 +182,7 @@ public class ControlUIActivity extends Activity {
                         mDeviceName = new String(intent.getByteArrayExtra(uBristleBotService.EXTRA_DATA));
                         Log.d(TAG, mDeviceName);
 
-                        mUBristleBotService.readCharacteristic(cBattery);
+                        uBristleBot.readCharacteristic(cBattery);
                         lastCharacteristicRequested = REQUESTED_C_BATTERY;
 
                         // Set Name in Settings Dialog
@@ -236,21 +194,21 @@ public class ControlUIActivity extends Activity {
                         mBatteryLeft = intent.getByteArrayExtra(uBristleBotService.EXTRA_DATA)[0] & 0xFF;
                         Log.d(TAG, String.valueOf(mBatteryLeft));
 
-                        mUBristleBotService.readCharacteristic(cLED_R);
+                        uBristleBot.readCharacteristic(cLED_R);
                         lastCharacteristicRequested = REQUESTED_C_LED_RED;
                         break;
                     case REQUESTED_C_LED_RED:
                         mRGB[0] = intent.getByteArrayExtra(uBristleBotService.EXTRA_DATA)[0] & 0xFF;
                         Log.d(TAG, String.valueOf(mRGB[0]));
 
-                        mUBristleBotService.readCharacteristic(cLED_G);
+                        uBristleBot.readCharacteristic(cLED_G);
                         lastCharacteristicRequested = REQUESTED_C_LED_GREEN;
                         break;
                     case REQUESTED_C_LED_GREEN:
                         mRGB[1] = intent.getByteArrayExtra(uBristleBotService.EXTRA_DATA)[0] & 0xFF;
                         Log.d(TAG, String.valueOf(mRGB[1]));
 
-                        mUBristleBotService.readCharacteristic(cLED_B);
+                        uBristleBot.readCharacteristic(cLED_B);
                         lastCharacteristicRequested = REQUESTED_C_LED_BLUE;
                         break;
                     case REQUESTED_C_LED_BLUE:
@@ -264,7 +222,7 @@ public class ControlUIActivity extends Activity {
                         lastCharacteristicRequested = REQUESTED_NOTHING;
 
                         // Now that we're done, lets start streaming battery info
-                        mUBristleBotService.setCharacteristicNotification(cBattery, true);
+                        uBristleBot.setCharacteristicNotification(cBattery, true);
                         break;
                     case REQUESTED_NOTHING:
                         // Wat.
@@ -278,50 +236,40 @@ public class ControlUIActivity extends Activity {
                 // TODO: Update UI
 
                 Log.i(TAG, "Battery: " + String.valueOf(intent.getByteArrayExtra(uBristleBotService.EXTRA_DATA)[0] & 0xFF) + "%");
-            }
+            }*/
         }
     };
 
 
     //
-    // UI
+    // Activity Life Cycle
     //
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_control_ui);
 
-        final Intent intent = getIntent();
-        mDeviceName = intent.getStringExtra(EXTRAS_DEVICE_NAME);
-        mDeviceAddress = intent.getStringExtra(EXTRAS_DEVICE_ADDRESS);
+        // Connect to uBristleBot Service
+        Intent uBristleBotServiceIntent = new Intent(this, uBristleBotService.class);
+        bindService(uBristleBotServiceIntent, mServiceConnection, BIND_AUTO_CREATE);
 
 
-        // Setup Immersive View
+        /*// Setup Immersive View
         View decorView = enterImmersiveView();
         decorView.setOnSystemUiVisibilityChangeListener(new View.OnSystemUiVisibilityChangeListener() {
             @Override
             public void onSystemUiVisibilityChange(int visibility) {
                 enterImmersiveView();
             }
-        });
+        });*/
 
         // Setup UI actions
         leftSeekbar = (SeekBar) findViewById(R.id.motor_left);
         leftSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                // Only send command if we're connected, the user moved the slider, and
-                //  the time since the last command sent >= 100ms
-                if (fromUser && mConnected && System.currentTimeMillis() >= lastCmd_MotorL + 100) {
-                    byte[] value = new byte[1];
-                    value[0] = (byte) ((progress * 255 / 100) & 0xFF);
-                    Log.d(TAG, "L: " + String.valueOf(progress) + "%\t B: " + Integer.toHexString(value[0] & 0xFF));
-                    cMotor_L.setValue(value);
-                    mUBristleBotService.writeCharacteristic(cMotor_L);
-
-                    // Set the new time since the last command sent
-                    lastCmd_MotorL = System.currentTimeMillis();
-                }
+                // TODO
+                //uBristleBot.setMotorLeft(progress);
             }
 
             @Override
@@ -331,17 +279,8 @@ public class ControlUIActivity extends Activity {
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
-                // Update UI
+                // Reset Seekbar to 0%
                 seekBar.setProgress(0);
-
-                // Turn off Motor
-                byte[] value = new byte[1];
-                value[0] = 0;
-                cMotor_L.setValue(value);
-                mUBristleBotService.writeCharacteristic(cMotor_L);
-
-                // Send it twice, just in case
-                mUBristleBotService.writeCharacteristic(cMotor_L);
             }
         });
 
@@ -349,18 +288,8 @@ public class ControlUIActivity extends Activity {
         rightSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                // Only send command if we're connected, the user moved the slider, and
-                //  the time since the last command sent >= 100ms
-                if (fromUser && mConnected && System.currentTimeMillis() >= lastCmd_MotorR + 100) {
-                    byte[] value = new byte[1];
-                    value[0] = (byte) ((progress * 255 / 100) & 0xFF);
-                    Log.d(TAG, "R: " + String.valueOf(progress) + "%  B: " + Integer.toHexString(value[0] & 0xFF));
-                    cMotor_R.setValue(value);
-                    mUBristleBotService.writeCharacteristic(cMotor_R);
-
-                    // Set the new time since the last command sent
-                    lastCmd_MotorR = System.currentTimeMillis();
-                }
+                // TODO
+                //uBristleBot.setMotorRight(progress);
             }
 
             @Override
@@ -370,19 +299,15 @@ public class ControlUIActivity extends Activity {
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
-                // Update UI
+                // Reset Seekbar to 0%
                 seekBar.setProgress(0);
-
-                // Turn off Motor
-                byte[] value = new byte[1];
-                value[0] = 0;
-                cMotor_R.setValue(value);
-                mUBristleBotService.writeCharacteristic(cMotor_R);
-
-                // Send it twice, just in case
-                mUBristleBotService.writeCharacteristic(cMotor_R);
             }
         });
+
+
+
+
+
 
         ledIcon = findViewById(R.id.led_icon);
         ledIcon.setOnLongClickListener(new View.OnLongClickListener() {
@@ -394,17 +319,14 @@ public class ControlUIActivity extends Activity {
         });
 
 
-        // Setup Settings Dialog
-        mDialog_View = this.getLayoutInflater().inflate(R.layout.dialog_settings, null);
-        mDialog_Settings = new AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+        // Setup Settings Dialog`
+        mDialog_View = this.getLayoutInflater().inflate(R.layout.dialog_device_settings, null);
+        mDialog_Settings = new AlertDialog.Builder(this)
                 .setView(mDialog_View)
                 .setPositiveButton(R.string.set, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int which) {
-                        if (!mDialog_Text_DeviceName.getText().toString().equals(mDeviceName)) {
-                            // TODO: Write new Device Name
-                        }
-
-
+                        // TODO
+                        //uBristleBot.setName();
                     }
                 })
                 .setNegativeButton(R.string.cancel, null)
@@ -418,77 +340,37 @@ public class ControlUIActivity extends Activity {
         mDialog_ColorChooser.setAdapter(adapter);
 
 
-
-        // Initialize Motor Commands time delay
-        lastCmd_MotorR = System.currentTimeMillis();
-        lastCmd_MotorL = System.currentTimeMillis();
-
-
-        getActionBar().setTitle(mDeviceName);
-        getActionBar().setDisplayHomeAsUpEnabled(true);
-
-        // Connect to BLE Service
-        Intent gattServiceIntent = new Intent(this, uBristleBotService.class);
-        bindService(gattServiceIntent, mServiceConnection, BIND_AUTO_CREATE);
+        //getActionBar().setTitle();
+        //getActionBar().setDisplayHomeAsUpEnabled(true);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter());
-        if (mUBristleBotService != null) {
-            final boolean result = mUBristleBotService.connect(mDeviceAddress);
-            Log.d(TAG, "Connect request result=" + result);
-        }
+
+        // Get updates from Service
+        registerReceiver(mUpdateReceiver, makeUpdateIntentFilter());
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        unregisterReceiver(mGattUpdateReceiver);
+
+        unregisterReceiver(mUpdateReceiver);
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        mUBristleBotService.disconnect();
+
         unbindService(mServiceConnection);
-        mUBristleBotService = null;
-    }
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.gatt_services, menu);
-        if (mConnected) {
-            menu.findItem(R.id.menu_connect).setVisible(false);
-            menu.findItem(R.id.menu_disconnect).setVisible(true);
-        } else {
-            menu.findItem(R.id.menu_connect).setVisible(true);
-            menu.findItem(R.id.menu_disconnect).setVisible(false);
-        }
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        switch(item.getItemId()) {
-            case R.id.menu_connect:
-                mUBristleBotService.connect(mDeviceAddress);
-                return true;
-            case R.id.menu_disconnect:
-                mUBristleBotService.disconnect();
-                return true;
-            case android.R.id.home:
-                onBackPressed();
-                return true;
-        }
-        return super.onOptionsItemSelected(item);
+        uBristleBot = null;
     }
 
 
 
 
-    private View enterImmersiveView() {
+    /*private View enterImmersiveView() {
         View mDecorView = getWindow().getDecorView();
         mDecorView.setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_LAYOUT_STABLE
@@ -499,14 +381,10 @@ public class ControlUIActivity extends Activity {
                         | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
 
         return mDecorView;
-
-    private static IntentFilter makeGattUpdateIntentFilter() {
+*/
+    private static IntentFilter makeUpdateIntentFilter() {
         final IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(uBristleBotService.ACTION_GATT_CONNECTED);
-        intentFilter.addAction(uBristleBotService.ACTION_GATT_DISCONNECTED);
-        intentFilter.addAction(uBristleBotService.ACTION_GATT_SERVICES_DISCOVERED);
-        intentFilter.addAction(uBristleBotService.ACTION_DATA_AVAILABLE);
-        intentFilter.addAction(uBristleBotService.ACTION_DATA_UPDATED);
+        intentFilter.addAction(uBristleBotService.ACTION_BLE_GATT_DISCONNECTED);
         return intentFilter;
-    }*/
+    }
 }

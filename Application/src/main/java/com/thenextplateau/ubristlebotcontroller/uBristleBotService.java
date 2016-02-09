@@ -197,7 +197,6 @@ public class uBristleBotService extends Service {
 
     @Override
     public boolean onUnbind(Intent intent) {
-        disconnect();
         return super.onUnbind(intent);
     }
 
@@ -263,6 +262,11 @@ public class uBristleBotService extends Service {
         }
 
         if (startScan) {
+            // Disconnect before starting scan, if needed
+            if (isConnected()) {
+                disconnect();
+            }
+
             // Stop scanning after a certain amount of time
             mScanHandler.postDelayed(new Runnable() {
                 @Override
@@ -274,7 +278,8 @@ public class uBristleBotService extends Service {
             // Start scanning for devices
             scanForDevices(true);
         } else {
-            mScanHandler.removeCallbacks(null);
+            mScanHandler.removeCallbacksAndMessages(null);
+            mScanHandler = new Handler();
             scanForDevices(false);
         }
     }

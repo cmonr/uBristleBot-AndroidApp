@@ -131,7 +131,6 @@ public class DeviceScanActivity extends AppCompatActivity {
                         Snackbar.LENGTH_SHORT);
                 snackbar.show();
 
-
                 startDeviceScan(false);
 
                 // Launch Control UI

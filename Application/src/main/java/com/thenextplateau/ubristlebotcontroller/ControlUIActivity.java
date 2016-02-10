@@ -384,7 +384,7 @@ public class ControlUIActivity extends Activity {
 */
     private static IntentFilter makeUpdateIntentFilter() {
         final IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(uBristleBotService.ACTION_BLE_GATT_DISCONNECTED);
+        intentFilter.addAction(uBristleBotService.ACTION_DEVICE_DISCONNECTED);
         return intentFilter;
     }
 }

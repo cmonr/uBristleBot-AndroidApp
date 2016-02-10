@@ -58,7 +58,6 @@ public class uBristleBotService extends Service {
     //
     // Service/Activity communication
     //
-
     public final static String ACTION_BLUETOOTH_IS_DISABLED =
             "com.thenextplateau.ubristlebot.ACTION_BLUETOOTH_IS_DISABLED";
     public final static String ACTION_CONNECTED =
@@ -69,20 +68,8 @@ public class uBristleBotService extends Service {
             "com.thenextplateau.ubristlebot.ACTION_DEVICE_FOUND";
     public final static String ACTION_SCAN_COMPLETE =
             "com.thenextplateau.ubristlebot.ACTION_SCAN_COMPLETE";
-
-
-    public final static String ACTION_BLE_GATT_CONNECTED =
-            "com.thenextplateau.ubristlebot.ACTION_GATT_CONNECTED";
-    public final static String ACTION_BLE_GATT_DISCONNECTED =
-            "com.thenextplateau.ubristlebot.ACTION_GATT_DISCONNECTED";
-    public final static String ACTION_BLE_GATT_SERVICES_DISCOVERED =
-            "com.thenextplateau.bubristlebot.ACTION_GATT_SERVICES_DISCOVERED";
-    public final static String ACTION_DATA_AVAILABLE =
-            "com.thenextplateau.ubristlebot.ACTION_DATA_AVAILABLE";
-    public final static String ACTION_DATA_UPDATED =
-            "com.thenextplateau.ubristlebot.ACTION_DATA_UPDATED";
-    public final static String EXTRA_DATA =
-            "com.thenextplateau.ubristlebot.EXTRA_DATA";
+    public final static String ACTION_DEVICE_DISCONNECTED =
+            "com.thenextplateau.ubristlebot.ACTION_BLE_DISCONNECTED";
 
     private final BluetoothGattCallback mGattCallback = new BluetoothGattCallback() {
         @Override
@@ -104,7 +91,7 @@ public class uBristleBotService extends Service {
                     Log.e(TAG, "Something happened that shouldn't have...");
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     Log.i(TAG, "Disconnected from Device.");
-                    broadcastUpdate(ACTION_BLE_GATT_DISCONNECTED);
+                    broadcastUpdate(ACTION_DEVICE_DISCONNECTED);
                 }
             }
         }
@@ -117,11 +104,8 @@ public class uBristleBotService extends Service {
                     mDeviceConnectionState = DEVICE_STATE_CONNECTED;
                     broadcastUpdate(ACTION_CONNECTED);
 
-                    // TODO: Populate characteristics from services
-                    List<BluetoothGattService> services = gatt.getServices();
-
-
-
+                    // Initialize BLE Characteristics
+                    initBLECharacteristics(gatt.getServices());
                 } else {
                     disconnect();
                     Log.i(TAG, "Services Discovered are not those of an uBristBot");
@@ -139,14 +123,87 @@ public class uBristleBotService extends Service {
                                          BluetoothGattCharacteristic characteristic,
                                          int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                broadcastUpdate(ACTION_DATA_AVAILABLE, characteristic);
+                // Immediately start reading another characteristic
+                if (! characteristicReadList.isEmpty()) {
+                    characteristicReadList.remove(0);
+                    mBluetoothGatt.readCharacteristic(characteristicReadList.get(0));
+                }
+
+                // Figure out where to put that data
+                if (characteristic.getUuid().equals(C_DEVICE_NAME)) {
+                    mDeviceName = new String(characteristic.getValue());
+                } else if (characteristic.getUuid().equals(C_BATTERY)) {
+                    mBatteryLeft = characteristic.getValue()[0] & 0xFF;
+                } else if (characteristic.getUuid().equals(C_LED_RED)) {
+                    mRGB[0] = characteristic.getValue()[0] & 0xFF;
+                } else if (characteristic.getUuid().equals(C_LED_GREEN)) {
+                    mRGB[1] = characteristic.getValue()[0] & 0xFF;
+                } else if (characteristic.getUuid().equals(C_LED_BLUE)) {
+                    mRGB[2] = characteristic.getValue()[0] & 0xFF;
+
+                    // That's the last of them!
+                    // Complete the remaining device init
+
+                    // Enable Battery Notification
+                    mBluetoothGatt.setCharacteristicNotification(characteristic, true);
+
+                    // Reference for magic numbers:
+                    //  https://developer.bluetooth.org/gatt/descriptors/Pages/DescriptorViewer.aspx?
+                    //  u=org.bluetooth.descriptor.gatt.client_characteristic_configuration.xml
+                    BluetoothGattDescriptor descriptor = characteristic.getDescriptor(
+                            UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"));
+
+                    descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+                    mBluetoothGatt.writeDescriptor(descriptor);
+                } else {
+                    // Wat.
+                    Log.e(TAG, "We're not suppose to get here....");
+                }
+            } else {
+                // Immediately retry read (max retries be damned...)
+                mBluetoothGatt.readCharacteristic(characteristicReadList.get(0));
+
+                Log.d(TAG, "BLE Characteristic Read failed. Error code: " + status);
             }
+        }
+
+        @Override
+        public void onCharacteristicWrite(BluetoothGatt gatt,
+                                          BluetoothGattCharacteristic characteristic,
+                                          int status) {
+            /*if (status == BluetoothGatt.GATT_SUCCESS) {
+                mMaxWriteRetries = 3;
+            } else {
+
+
+                // Retry?
+                mMaxWriteRetries--;
+
+                if (mMaxWriteRetries == 0) {
+
+                } else {
+                    mBluetoothGatt.readCharacteristic(characteristicReadList.get(0));
+                }
+            }*/
         }
 
         @Override
         public void onCharacteristicChanged(BluetoothGatt gatt,
                                             BluetoothGattCharacteristic characteristic) {
-            broadcastUpdate(ACTION_DATA_UPDATED, characteristic);
+            //broadcastUpdate(ACTION_DATA_UPDATED, characteristic);
+            // TODO: Update mBatteryLeft
+            // TODO: Notify that battery has changed
+        }
+
+        @Override
+        public void onReadRemoteRssi(BluetoothGatt gatt,
+                                     int rssi,
+                                     int status) {
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                // TODO
+            } else {
+                Log.e(TAG, "Error reading remote RSSI");
+            }
         }
     };
 
@@ -179,7 +236,7 @@ public class uBristleBotService extends Service {
 
         final byte[] data = characteristic.getValue();
         if (data != null && data.length > 0) {
-            intent.putExtra(EXTRA_DATA, data);
+            //intent.putExtra(EXTRA_DATA, data);
         }
         sendBroadcast(intent);
     }
@@ -443,85 +500,90 @@ public class uBristleBotService extends Service {
     }
 
 
+    //
+    // Initialize internal state of device
+    //  (aka, Setup Characteristics and other internal structures)
+    //
+    private static final UUID C_DEVICE_NAME = UUID.fromString("00002a00-0000-1000-8000-00805f9b34fb");
+    private static final UUID C_BATTERY = UUID.fromString("00002a19-0000-1000-8000-00805f9b34fb");
+    private static final UUID C_LED_RED = UUID.fromString("05664686-5bf2-45a9-83c5-8a927cd2e20c");
+    private static final UUID C_LED_GREEN = UUID.fromString("dc203e1a-bfa0-4647-9693-e923b1585cce");
+    private static final UUID C_LED_BLUE = UUID.fromString("2aacf813-333d-4b6c-b997-45854b8424b1");
+    private static final UUID C_MOTOR_LEFT = UUID.fromString("03957515-5976-41c3-982a-56cb6c4b4a38");
+    private static final UUID C_MOTOR_RIGHT = UUID.fromString("537ef040-0e23-4fdc-80eb-eedd837ad98f");
+    private static final UUID C_SAVE_CHANGES = UUID.fromString("a0632df5-f8ad-401b-9f0f-80fd1f43edf3");
+
+    // BLE Characteristics
+    private static BluetoothGattCharacteristic cDeviceName = null;
+    private static BluetoothGattCharacteristic cBattery = null;
+    private static BluetoothGattCharacteristic cLED_R = null;
+    private static BluetoothGattCharacteristic cLED_G = null;
+    private static BluetoothGattCharacteristic cLED_B = null;
+    private static BluetoothGattCharacteristic cMotor_L = null;
+    private static BluetoothGattCharacteristic cMotor_R = null;
+    private static BluetoothGattCharacteristic cSave = null;
+
+    // BLE Characteristic Read/Write lists
+    private static ArrayList<BluetoothGattCharacteristic> characteristicReadList;
+    private static ArrayList<BluetoothGattCharacteristic> characteristicWriteList;
+    private static int mMaxWriteRetries = 3;
+
+    // uBristleBot info we care about
+    private static String mDeviceName = null;
+    private static int mBatteryLeft = -1;
+    private int[] mRGB = new int[3];
 
 
+    public void initBLECharacteristics(List<BluetoothGattService> servicesDiscovered) {
+        // Initialize all internal Characteristics
+        cDeviceName = servicesDiscovered.get(0).getCharacteristic(C_DEVICE_NAME);
+
+        cBattery = servicesDiscovered.get(1).getCharacteristic(C_BATTERY);
+
+        cLED_R = servicesDiscovered.get(2).getCharacteristic(C_LED_RED);
+        cLED_G = servicesDiscovered.get(2).getCharacteristic(C_LED_GREEN);
+        cLED_B = servicesDiscovered.get(2).getCharacteristic(C_LED_BLUE);
+
+        cMotor_L = servicesDiscovered.get(3).getCharacteristic(C_MOTOR_LEFT);
+        cMotor_R = servicesDiscovered.get(3).getCharacteristic(C_MOTOR_RIGHT);
+
+        cSave = servicesDiscovered.get(4).getCharacteristic(C_SAVE_CHANGES);
 
 
+        // Setup Read Queue
+        characteristicReadList = new ArrayList<>();
+        characteristicReadList.add(cDeviceName);
+        characteristicReadList.add(cBattery);
+        characteristicReadList.add(cLED_R);
+        characteristicReadList.add(cLED_G);
+        characteristicReadList.add(cLED_B);
 
 
+        // Start reading Characteristics from Server
+        mBluetoothGatt.readCharacteristic(characteristicReadList.get(0));
 
-
-
-
-
-
-    /**
-     * Request a read on a given {@code BluetoothGattCharacteristic}. The read result is reported
-     * asynchronously through the {@code BluetoothGattCallback#onCharacteristicRead(android.bluetooth.BluetoothGatt, android.bluetooth.BluetoothGattCharacteristic, int)}
-     * callback.
-     *
-     * @param characteristic The characteristic to read from.
-     */
-    public void readCharacteristic(BluetoothGattCharacteristic characteristic) {
-        if (mBluetoothAdapter == null || mBluetoothGatt == null) {
-            Log.w(TAG, "BluetoothAdapter not initialized");
-            return;
-        }
-        mBluetoothGatt.readCharacteristic(characteristic);
+        // Reinit Max Retries
+        mMaxWriteRetries = 3;
     }
 
-    /**
-     * TODO
-     * @param characteristic The characteristic to write to
-     * @return If the characteristic was successfully updated
-     */
-    public boolean writeCharacteristic(BluetoothGattCharacteristic characteristic) {
-        if (mBluetoothAdapter == null || mBluetoothGatt == null) {
-            Log.w(TAG, "BluetoothAdapter not initialized");
-            return false;
-        }
 
-        return mBluetoothGatt.writeCharacteristic(characteristic);
+
+    //
+    // uBristleBot Primary Functions
+    //
+    public void setName(String name) {
+
     }
+    public void setColor(int r, int g, int b) {
 
-    /**
-     * Enables or disables notification on a give characteristic.
-     *
-     * @param characteristic Characteristic to act on.
-     * @param enabled If true, enable notification.  False otherwise.
-     */
-    public void setCharacteristicNotification(BluetoothGattCharacteristic characteristic,
-                                              boolean enabled) {
-        if (mBluetoothAdapter == null || mBluetoothGatt == null) {
-            Log.w(TAG, "BluetoothAdapter not initialized");
-            return;
-        }
-        mBluetoothGatt.setCharacteristicNotification(characteristic, enabled);
-
-        // Reference for magic numbers:
-        //  https://developer.bluetooth.org/gatt/descriptors/Pages/DescriptorViewer.aspx?
-        //  u=org.bluetooth.descriptor.gatt.client_characteristic_configuration.xml
-        BluetoothGattDescriptor descriptor = characteristic.getDescriptor(
-                UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"));
-
-        if (enabled) {
-            descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-        } else {
-            descriptor.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
-        }
-
-        mBluetoothGatt.writeDescriptor(descriptor);
     }
+    public void setLeftMotor(int percent) {
 
-    /**
-     * Retrieves a list of supported GATT services on the connected device. This should be
-     * invoked only after {@code BluetoothGatt#discoverServices()} completes successfully.
-     *
-     * @return A {@code List} of supported services.
-     */
-    public List<BluetoothGattService> getSupportedGattServices() {
-        if (mBluetoothGatt == null) return null;
+    }
+    public void setRightMotor(int percent) {
 
-        return mBluetoothGatt.getServices();
+    }
+    public void saveSettingsAndDisconnect() {
+
     }
 }

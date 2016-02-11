@@ -60,14 +60,18 @@ public class uBristleBotService extends Service {
     //
     public final static String ACTION_BLUETOOTH_IS_DISABLED =
             "com.thenextplateau.ubristlebot.ACTION_BLUETOOTH_IS_DISABLED";
-    public final static String ACTION_CONNECTED =
-            "com.thenextplateau.ubristlebot.ACTION_CONNECTED";
-    public final static String ACTION_CONNECT_FAILED =
-            "com.thenextplateau.ubristlebot.ACTION_CONNECT_FAILED";
     public final static String ACTION_DEVICE_FOUND =
             "com.thenextplateau.ubristlebot.ACTION_DEVICE_FOUND";
     public final static String ACTION_SCAN_COMPLETE =
             "com.thenextplateau.ubristlebot.ACTION_SCAN_COMPLETE";
+    public final static String ACTION_CONNECT_FAILED =
+            "com.thenextplateau.ubristlebot.ACTION_CONNECT_FAILED";
+    public final static String ACTION_CONNECTING_COMPARING_SERVICES =
+            "com.thenextplateau.ubristlebot.ACTION_CONNECTING_COMPARING_SERVICES";
+    public final static String ACTION_CONNECTING_READING_CHARACTERISTICS =
+            "com.thenextplateau.ubristlebot.ACTION_CONNECTING_READING_CHARACTERISTICS";
+    public final static String ACTION_CONNECTED =
+            "com.thenextplateau.ubristlebot.ACTION_CONNECTED";
     public final static String ACTION_DEVICE_DISCONNECTED =
             "com.thenextplateau.ubristlebot.ACTION_BLE_DISCONNECTED";
 
@@ -81,6 +85,7 @@ public class uBristleBotService extends Service {
 
                     // Discover Services
                     mBluetoothGatt.discoverServices();
+                    broadcastUpdate(ACTION_CONNECTING_COMPARING_SERVICES);
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     mDeviceConnectionState = DEVICE_STATE_DISCONNECTED;
                     Log.i(TAG, "Could not connect to Device.");
@@ -100,11 +105,11 @@ public class uBristleBotService extends Service {
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 if (isuBristleBot(gatt.getServices())) {
-                    // We've successfully connected to a uBristleBot!
+                    // We're connected to a uBristleBot!
                     mDeviceConnectionState = DEVICE_STATE_CONNECTED;
-                    broadcastUpdate(ACTION_CONNECTED);
 
                     // Initialize BLE Characteristics
+                    broadcastUpdate(ACTION_CONNECTING_READING_CHARACTERISTICS);
                     initBLECharacteristics(gatt.getServices());
                 } else {
                     disconnect();
@@ -124,8 +129,8 @@ public class uBristleBotService extends Service {
                                          int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 // Immediately start reading another characteristic
+                characteristicReadList.remove(0);
                 if (! characteristicReadList.isEmpty()) {
-                    characteristicReadList.remove(0);
                     mBluetoothGatt.readCharacteristic(characteristicReadList.get(0));
                 }
 
@@ -145,16 +150,34 @@ public class uBristleBotService extends Service {
                     // Complete the remaining device init
 
                     // Enable Battery Notification
-                    mBluetoothGatt.setCharacteristicNotification(characteristic, true);
+                    mBluetoothGatt.setCharacteristicNotification(cBattery, true);
 
                     // Reference for magic numbers:
                     //  https://developer.bluetooth.org/gatt/descriptors/Pages/DescriptorViewer.aspx?
                     //  u=org.bluetooth.descriptor.gatt.client_characteristic_configuration.xml
-                    BluetoothGattDescriptor descriptor = characteristic.getDescriptor(
+                    BluetoothGattDescriptor descriptor = cBattery.getDescriptor(
                             UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"));
 
                     descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
                     mBluetoothGatt.writeDescriptor(descriptor);
+
+
+                    // Init other variables
+                    mMotorsChanged = false;
+                    mLeftMotorPercent = 0;
+                    mRightMotorPercent = 0;
+
+                    mDeviceName = "";
+                    mBatteryLeft = -1;
+                    mRGB = new int[3];
+                    mRGB[0] = mRGB[1] = mRGB[2] = 0xFF;
+
+                    mMotorUpdateHandler = new Handler();
+                    mMotorUpdateHandler.postDelayed();
+
+
+                    // We're ready for the fun stuff!
+                    broadcastUpdate(ACTION_CONNECTED);
                 } else {
                     // Wat.
                     Log.e(TAG, "We're not suppose to get here....");
@@ -185,6 +208,13 @@ public class uBristleBotService extends Service {
                     mBluetoothGatt.readCharacteristic(characteristicReadList.get(0));
                 }
             }*/
+
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                // Do nothing
+            } else {
+                // Just log it for now
+                Log.d(TAG, "BLE Characteristic Write failed. Error code: " + status);
+            }
         }
 
         @Override
@@ -529,10 +559,9 @@ public class uBristleBotService extends Service {
     private static int mMaxWriteRetries = 3;
 
     // uBristleBot info we care about
-    private static String mDeviceName = null;
-    private static int mBatteryLeft = -1;
-    private int[] mRGB = new int[3];
-
+    private static String mDeviceName;
+    private static int mBatteryLeft;
+    private int[] mRGB;
 
     public void initBLECharacteristics(List<BluetoothGattService> servicesDiscovered) {
         // Initialize all internal Characteristics
@@ -561,16 +590,31 @@ public class uBristleBotService extends Service {
 
         // Start reading Characteristics from Server
         mBluetoothGatt.readCharacteristic(characteristicReadList.get(0));
-
-        // Reinit Max Retries
-        mMaxWriteRetries = 3;
     }
-
-
 
     //
     // uBristleBot Primary Functions
     //
+    private static int mLeftMotorPercent;
+    private static int mRightMotorPercent;
+    private static boolean mMotorsChanged;
+    private static Handler mMotorUpdateHandler;
+    private static Runnable updateMotorCharacteristics = new Runnable() {
+        @Override
+        public void run() {
+            if (mLeftMotorChanged && mRightMotorChanged) {
+                // We'll need to enqueue the commands
+            } else {
+                // Only one motor changed. We can be a bit lazy
+                if (mLeftMotorChanged) {
+
+                }
+                if (mRightMotorChanged) {
+
+                }
+        }
+    }
+
     public void setName(String name) {
 
     }
@@ -578,10 +622,18 @@ public class uBristleBotService extends Service {
 
     }
     public void setLeftMotor(int percent) {
+        if (percent < 0 || percent > 100)
+            return;
 
+        mLeftMotorPercent = percent;
+        mMotorsChanged = true;
     }
     public void setRightMotor(int percent) {
+        if (percent < 0 || percent > 100)
+            return;
 
+        mRightMotorPercent = percent;
+        mMotorsChanged = true;
     }
     public void saveSettingsAndDisconnect() {
 

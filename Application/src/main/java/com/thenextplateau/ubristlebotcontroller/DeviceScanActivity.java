@@ -108,6 +108,7 @@ public class DeviceScanActivity extends AppCompatActivity {
     //   BLE Not Enabled
     //   Device Found
     //   Connection Failed [General Failure, Service Match]
+    //   Connecting
     //   Connected
     //   Disconnected (Just in case)
     private final BroadcastReceiver mUpdateReceiver = new BroadcastReceiver() {
@@ -120,9 +121,25 @@ public class DeviceScanActivity extends AppCompatActivity {
                 Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
                 startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
 
+            } else if (uBristleBotService.ACTION_DEVICE_FOUND.equals(action)) {
+                // Add to UI List
+                mLeDeviceListAdapter.addDevice(
+                        intent.getStringExtra(uBristleBotService.SCAN_RESULT_DEVICE_NAME),
+                        intent.getStringExtra(uBristleBotService.SCAN_RESULT_DEVICE_ADDRESS),
+                        intent.getIntExtra(uBristleBotService.SCAN_RESULT_DEVICE_RSSI, -999));
+
+                // Update UI List
+                mLeDeviceListAdapter.notifyDataSetChanged();
             } else if (uBristleBotService.ACTION_SCAN_COMPLETE.equals(action)) {
                 // Indicate scan was completed/stopped
                 mRefreshLayout.setRefreshing(false);
+
+            }  else if (uBristleBotService.ACTION_CONNECT_FAILED.equals(action)) {
+                Snackbar snackbar = Snackbar.make(
+                        mRefreshLayout,
+                        intent.getStringExtra(uBristleBotService.CONNECT_ERROR),
+                        Snackbar.LENGTH_SHORT);
+                snackbar.show();
 
             } else if (uBristleBotService.ACTION_CONNECTED.equals(action)) {
                 Snackbar snackbar = Snackbar.make(
@@ -136,22 +153,6 @@ public class DeviceScanActivity extends AppCompatActivity {
                 // Launch Control UI
                 startActivity(new Intent(DeviceScanActivity.this, ControlUIActivity.class));
 
-            } else if (uBristleBotService.ACTION_CONNECT_FAILED.equals(action)) {
-                Snackbar snackbar = Snackbar.make(
-                        mRefreshLayout,
-                        intent.getStringExtra(uBristleBotService.CONNECT_ERROR),
-                        Snackbar.LENGTH_SHORT);
-                snackbar.show();
-
-            } else if (uBristleBotService.ACTION_DEVICE_FOUND.equals(action)) {
-                // Add to UI List
-                mLeDeviceListAdapter.addDevice(
-                        intent.getStringExtra(uBristleBotService.SCAN_RESULT_DEVICE_NAME),
-                        intent.getStringExtra(uBristleBotService.SCAN_RESULT_DEVICE_ADDRESS),
-                        intent.getIntExtra(uBristleBotService.SCAN_RESULT_DEVICE_RSSI, -999));
-
-                // Update UI List
-                mLeDeviceListAdapter.notifyDataSetChanged();
             }
         }
     };
@@ -161,6 +162,8 @@ public class DeviceScanActivity extends AppCompatActivity {
         intentFilter.addAction(uBristleBotService.ACTION_BLUETOOTH_IS_DISABLED);
         intentFilter.addAction(uBristleBotService.ACTION_DEVICE_FOUND);
         intentFilter.addAction(uBristleBotService.ACTION_SCAN_COMPLETE);
+        intentFilter.addAction(uBristleBotService.ACTION_CONNECTING_COMPARING_SERVICES);
+        intentFilter.addAction(uBristleBotService.ACTION_CONNECTING_READING_CHARACTERISTICS);
         intentFilter.addAction(uBristleBotService.ACTION_CONNECTED);
         intentFilter.addAction(uBristleBotService.ACTION_CONNECT_FAILED);
         return intentFilter;

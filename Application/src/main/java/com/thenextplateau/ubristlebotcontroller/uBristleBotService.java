@@ -52,7 +52,7 @@ public class uBristleBotService extends Service {
 
     private BluetoothManager mBluetoothManager;
     private BluetoothAdapter mBluetoothAdapter;
-    private BluetoothGatt mBluetoothGatt;
+    private static BluetoothGatt mBluetoothGatt;
 
 
     //
@@ -162,10 +162,13 @@ public class uBristleBotService extends Service {
                     mBluetoothGatt.writeDescriptor(descriptor);
 
 
-                    // Init other variables
-                    mMotorsChanged = false;
+                    // Init Other Variables
+                    mLeftMotorChanged = false;
+                    mRightMotorChanged = false;
                     mLeftMotorPercent = 0;
                     mRightMotorPercent = 0;
+
+                    // TODO: Setup handler
 
                     mDeviceName = "";
                     mBatteryLeft = -1;
@@ -173,7 +176,7 @@ public class uBristleBotService extends Service {
                     mRGB[0] = mRGB[1] = mRGB[2] = 0xFF;
 
                     mMotorUpdateHandler = new Handler();
-                    mMotorUpdateHandler.postDelayed();
+                    mMotorUpdateHandler.postDelayed(updateMotorCharacteristics, 200);
 
 
                     // We're ready for the fun stuff!
@@ -194,26 +197,37 @@ public class uBristleBotService extends Service {
         public void onCharacteristicWrite(BluetoothGatt gatt,
                                           BluetoothGattCharacteristic characteristic,
                                           int status) {
-            /*if (status == BluetoothGatt.GATT_SUCCESS) {
-                mMaxWriteRetries = 3;
-            } else {
-
-
-                // Retry?
-                mMaxWriteRetries--;
-
-                if (mMaxWriteRetries == 0) {
-
-                } else {
-                    mBluetoothGatt.readCharacteristic(characteristicReadList.get(0));
-                }
-            }*/
-
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                // Do nothing
-            } else {
-                // Just log it for now
+            if (status != BluetoothGatt.GATT_SUCCESS) {
                 Log.d(TAG, "BLE Characteristic Write failed. Error code: " + status);
+                // Something went wrong...
+                if (characteristic.getUuid().equals(cMotor_L.getUuid()) ||
+                        characteristic.getUuid().equals(cMotor_R.getUuid())) {
+                    // Only resend if motor was set to 0
+                    if (characteristic.getValue()[0] == 0) {
+                        mBluetoothGatt.writeCharacteristic(characteristic);
+                        return;
+                    }
+
+                    // Otherwise, forget about it. The values will change so often
+                    //  that if we try to constantly resend in a noisy env,
+                    //  responsiveness will degrade.
+                } else {
+                    // Any other write should always make it through.
+                    mBluetoothGatt.writeCharacteristic(characteristic);
+                    return;
+                }
+            }
+
+            // Everything went well. Update the next characteristic if needed.
+            if (! characteristicWriteList.isEmpty()) {
+                characteristicWriteList.remove(0);
+                mBluetoothGatt.writeCharacteristic(characteristicWriteList.get(0));
+            }
+
+            // If we've just saved settings, we're about to be disconnected.
+            //  Preempt this.
+            if (characteristic.getUuid().equals(cSave.getUuid())) {
+                disconnect();
             }
         }
 
@@ -522,6 +536,8 @@ public class uBristleBotService extends Service {
             return;
         }
 
+        // TODO: De-init everything
+
         mBluetoothGatt.disconnect();
 
         // We're either connected or we're not. No in between.
@@ -556,7 +572,6 @@ public class uBristleBotService extends Service {
     // BLE Characteristic Read/Write lists
     private static ArrayList<BluetoothGattCharacteristic> characteristicReadList;
     private static ArrayList<BluetoothGattCharacteristic> characteristicWriteList;
-    private static int mMaxWriteRetries = 3;
 
     // uBristleBot info we care about
     private static String mDeviceName;
@@ -587,6 +602,8 @@ public class uBristleBotService extends Service {
         characteristicReadList.add(cLED_G);
         characteristicReadList.add(cLED_B);
 
+        // Setup Write Queue
+        characteristicWriteList = new ArrayList<>();
 
         // Start reading Characteristics from Server
         mBluetoothGatt.readCharacteristic(characteristicReadList.get(0));
@@ -595,47 +612,96 @@ public class uBristleBotService extends Service {
     //
     // uBristleBot Primary Functions
     //
+    private static boolean mLeftMotorChanged;
+    private static boolean mRightMotorChanged;
     private static int mLeftMotorPercent;
     private static int mRightMotorPercent;
-    private static boolean mMotorsChanged;
     private static Handler mMotorUpdateHandler;
     private static Runnable updateMotorCharacteristics = new Runnable() {
         @Override
         public void run() {
-            if (mLeftMotorChanged && mRightMotorChanged) {
-                // We'll need to enqueue the commands
-            } else {
-                // Only one motor changed. We can be a bit lazy
-                if (mLeftMotorChanged) {
+            // Only write new values once the queue is empty
+            if (characteristicWriteList.isEmpty()) {
+                byte[] tmp = new byte[1];
 
+                if (mLeftMotorChanged) {
+                    mLeftMotorChanged = false;
+
+                    tmp[0] = (byte) ((mLeftMotorPercent * 255) & 0xFF);
+                    cMotor_L.setValue(tmp);
+
+                    characteristicWriteList.add(cMotor_L);
                 }
                 if (mRightMotorChanged) {
+                    mRightMotorChanged = false;
 
+                    tmp[0] = (byte) ((mRightMotorPercent * 255) & 0xFF);
+                    cMotor_R.setValue(tmp);
+
+                    characteristicWriteList.add(cMotor_R);
                 }
+
+                // Write a characteristic as long as either changed
+                if (mLeftMotorChanged || mRightMotorChanged) {
+                    mBluetoothGatt.writeCharacteristic(characteristicWriteList.get(0));
+                }
+            }
         }
-    }
+    };
 
     public void setName(String name) {
+        if (! name.equals(mDeviceName)) {
+            mDeviceName = name;
 
+            // Update characteristic
+            cDeviceName.setValue(mDeviceName.getBytes());
+        }
     }
     public void setColor(int r, int g, int b) {
+        if (r != mRGB[0] && g != mRGB[1] && b != mRGB[2]) {
+            mRGB[0] = r & 0xFF;
+            mRGB[1] = g & 0xFF;
+            mRGB[2] = b & 0xFF;
 
+            // Update characteristics
+            byte[] tmp = new byte[1];
+            tmp[0] = (byte) (mRGB[0] & 0xFF);
+            cLED_R.setValue(tmp);
+            tmp[0] = (byte) (mRGB[1] & 0xFF);
+            cLED_G.setValue(tmp);
+            tmp[0] = (byte) (mRGB[2] & 0xFF);
+            cLED_B.setValue(tmp);
+        }
     }
     public void setLeftMotor(int percent) {
         if (percent < 0 || percent > 100)
             return;
 
         mLeftMotorPercent = percent;
-        mMotorsChanged = true;
+        mLeftMotorChanged = true;
     }
     public void setRightMotor(int percent) {
         if (percent < 0 || percent > 100)
             return;
 
         mRightMotorPercent = percent;
-        mMotorsChanged = true;
+        mRightMotorChanged = true;
     }
     public void saveSettingsAndDisconnect() {
+        // Add characteristics to write queue
+        characteristicWriteList.clear();
+        characteristicWriteList.add(cDeviceName);
+        characteristicWriteList.add(cLED_R);
+        characteristicWriteList.add(cLED_G);
+        characteristicWriteList.add(cLED_B);
 
+        // Set characteristic that'll make these settings stick on the device
+        byte[] tmp = new byte[1];
+        tmp[0] = 1;
+        cSave.setValue(tmp);
+        characteristicWriteList.add(cSave);
+
+        // Get things going
+        mBluetoothGatt.writeCharacteristic(characteristicWriteList.get(0));
     }
 }

@@ -20,7 +20,8 @@
     android:layout_margin="10dp"
     android:orientation="horizontal"
     android:baselineAligned="true"
-    android:padding="10dp">
+    android:padding="10dp"
+    android:id="@+id/controllerUIContainer">
 
     <com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBarWrapper
         android:layout_width="wrap_content"

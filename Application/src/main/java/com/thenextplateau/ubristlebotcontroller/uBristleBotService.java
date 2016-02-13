@@ -36,6 +36,7 @@ import android.os.Binder;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.util.Log;
 
@@ -111,6 +112,9 @@ public class uBristleBotService extends Service {
                     // Initialize BLE Characteristics
                     broadcastUpdate(ACTION_CONNECTING_READING_CHARACTERISTICS);
                     initBLECharacteristics(gatt.getServices());
+
+                    // Initialize everything else for the robot
+                    robotInit();
                 } else {
                     disconnect();
                     Log.i(TAG, "Services Discovered are not those of an uBristBot");
@@ -137,8 +141,10 @@ public class uBristleBotService extends Service {
                 // Figure out where to put that data
                 if (characteristic.getUuid().equals(C_DEVICE_NAME)) {
                     mDeviceName = new String(characteristic.getValue());
+
                 } else if (characteristic.getUuid().equals(C_BATTERY)) {
-                    mBatteryLeft = characteristic.getValue()[0] & 0xFF;
+                    boradcastDeviceBatteryUpdate(characteristic.getValue()[0] & 0xFF);
+
                 } else if (characteristic.getUuid().equals(C_LED_RED)) {
                     mRGB[0] = characteristic.getValue()[0] & 0xFF;
                 } else if (characteristic.getUuid().equals(C_LED_GREEN)) {
@@ -160,24 +166,6 @@ public class uBristleBotService extends Service {
 
                     descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
                     mBluetoothGatt.writeDescriptor(descriptor);
-
-
-                    // Init Other Variables
-                    mLeftMotorChanged = false;
-                    mRightMotorChanged = false;
-                    mLeftMotorPercent = 0;
-                    mRightMotorPercent = 0;
-
-                    // TODO: Setup handler
-
-                    mDeviceName = "";
-                    mBatteryLeft = -1;
-                    mRGB = new int[3];
-                    mRGB[0] = mRGB[1] = mRGB[2] = 0xFF;
-
-                    mMotorUpdateHandler = new Handler();
-                    mMotorUpdateHandler.postDelayed(updateMotorCharacteristics, 200);
-
 
                     // We're ready for the fun stuff!
                     broadcastUpdate(ACTION_CONNECTED);
@@ -204,6 +192,7 @@ public class uBristleBotService extends Service {
                         characteristic.getUuid().equals(cMotor_R.getUuid())) {
                     // Only resend if motor was set to 0
                     if (characteristic.getValue()[0] == 0) {
+                        Log.d(TAG, "Rewriting 0");
                         mBluetoothGatt.writeCharacteristic(characteristic);
                         return;
                     }
@@ -217,10 +206,12 @@ public class uBristleBotService extends Service {
                     return;
                 }
             }
+            Log.d(TAG, "BLE Characteristic Write succeeded");
 
             // Everything went well. Update the next characteristic if needed.
+            characteristicWriteList.remove(0);
             if (! characteristicWriteList.isEmpty()) {
-                characteristicWriteList.remove(0);
+                Log.d(TAG, "BLE Characteristic Write succeeded");
                 mBluetoothGatt.writeCharacteristic(characteristicWriteList.get(0));
             }
 
@@ -234,9 +225,7 @@ public class uBristleBotService extends Service {
         @Override
         public void onCharacteristicChanged(BluetoothGatt gatt,
                                             BluetoothGattCharacteristic characteristic) {
-            //broadcastUpdate(ACTION_DATA_UPDATED, characteristic);
-            // TODO: Update mBatteryLeft
-            // TODO: Notify that battery has changed
+            boradcastDeviceBatteryUpdate(characteristic.getValue()[0] & 0xFF);
         }
 
         @Override
@@ -244,7 +233,7 @@ public class uBristleBotService extends Service {
                                      int rssi,
                                      int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                // TODO
+                boradcastDeviceRSSIUpdate(rssi);
             } else {
                 Log.e(TAG, "Error reading remote RSSI");
             }
@@ -274,16 +263,23 @@ public class uBristleBotService extends Service {
         sendBroadcast(intent);
     }
 
-    private void broadcastUpdate(final String action,
-                                 final BluetoothGattCharacteristic characteristic) {
-        final Intent intent = new Intent(action);
+    private void boradcastDeviceRSSIUpdate(final int rssi) {
+        final Intent intent = new Intent(ACTION_DEVICE_RSSI_CHANGED);
 
-        final byte[] data = characteristic.getValue();
-        if (data != null && data.length > 0) {
-            //intent.putExtra(EXTRA_DATA, data);
-        }
+        intent.putExtra(DEVICE_RSSI, rssi);
+
         sendBroadcast(intent);
     }
+
+    private void boradcastDeviceBatteryUpdate(final int batteryPercent) {
+        final Intent intent = new Intent(ACTION_DEVICE_BATTERY_CHANGED);
+
+        intent.putExtra(DEVICE_BATTERY, batteryPercent);
+
+        sendBroadcast(intent);
+    }
+
+
 
     public class LocalBinder extends Binder {
         uBristleBotService getService() {
@@ -336,7 +332,7 @@ public class uBristleBotService extends Service {
             return INIT_ERROR_BLUETOOTH_ADAPTER_INIT_FAILED;
         }
 
-        mScanHandler = new Handler();
+        mScanHandler = new Handler(Looper.getMainLooper());
 
         return INIT_ERROR_NONE;
     }
@@ -380,13 +376,14 @@ public class uBristleBotService extends Service {
             scanForDevices(true);
         } else {
             mScanHandler.removeCallbacksAndMessages(null);
-            mScanHandler = new Handler();
+            mScanHandler = new Handler(Looper.getMainLooper());
             scanForDevices(false);
         }
     }
 
     // Helper function for API differences
     @SuppressLint("NewApi")
+    @SuppressWarnings("deprecation")
     private void scanForDevices(boolean startScan) {
         if (startScan) {
             if (!mIsScanning) {
@@ -536,7 +533,7 @@ public class uBristleBotService extends Service {
             return;
         }
 
-        // TODO: De-init everything
+        robotDeinit();
 
         mBluetoothGatt.disconnect();
 
@@ -547,8 +544,7 @@ public class uBristleBotService extends Service {
 
 
     //
-    // Initialize internal state of device
-    //  (aka, Setup Characteristics and other internal structures)
+    // Initialize BLE Characteristics for the device
     //
     private static final UUID C_DEVICE_NAME = UUID.fromString("00002a00-0000-1000-8000-00805f9b34fb");
     private static final UUID C_BATTERY = UUID.fromString("00002a19-0000-1000-8000-00805f9b34fb");
@@ -575,7 +571,6 @@ public class uBristleBotService extends Service {
 
     // uBristleBot info we care about
     private static String mDeviceName;
-    private static int mBatteryLeft;
     private int[] mRGB;
 
     public void initBLECharacteristics(List<BluetoothGattService> servicesDiscovered) {
@@ -610,7 +605,7 @@ public class uBristleBotService extends Service {
     }
 
     //
-    // uBristleBot Primary Functions
+    // uBristleBot
     //
     private static boolean mLeftMotorChanged;
     private static boolean mRightMotorChanged;
@@ -625,6 +620,7 @@ public class uBristleBotService extends Service {
                 byte[] tmp = new byte[1];
 
                 if (mLeftMotorChanged) {
+                    Log.i(TAG, "Set Left Motor to: " + String.valueOf(mLeftMotorPercent) + "%");
                     mLeftMotorChanged = false;
 
                     tmp[0] = (byte) ((mLeftMotorPercent * 255) & 0xFF);
@@ -633,6 +629,7 @@ public class uBristleBotService extends Service {
                     characteristicWriteList.add(cMotor_L);
                 }
                 if (mRightMotorChanged) {
+                    Log.i(TAG, "Set Right Motor to: " + String.valueOf(mRightMotorPercent) + "%");
                     mRightMotorChanged = false;
 
                     tmp[0] = (byte) ((mRightMotorPercent * 255) & 0xFF);
@@ -642,12 +639,55 @@ public class uBristleBotService extends Service {
                 }
 
                 // Write a characteristic as long as either changed
-                if (mLeftMotorChanged || mRightMotorChanged) {
+                if (! characteristicWriteList.isEmpty()) {
+                    Log.i(TAG, "Writing BLE Characteristic");
                     mBluetoothGatt.writeCharacteristic(characteristicWriteList.get(0));
                 }
             }
+
+            // Do it again!
+            mMotorUpdateHandler.postDelayed(updateMotorCharacteristics, 200);
         }
     };
+
+    public final static String ACTION_DEVICE_RSSI_CHANGED =
+            "com.thenextplateau.ubristlebot.ACTION_DEVICE_RSSI_CHANGED";
+    public final static String ACTION_DEVICE_BATTERY_CHANGED =
+            "com.thenextplateau.ubristlebot.ACTION_DEVICE_BATTERY_CHANGED";
+    public final static String DEVICE_RSSI =
+            "com.thenextplateau.ubristlebot.DEVICE_BATTERY";
+    public final static String DEVICE_BATTERY =
+            "com.thenextplateau.ubristlebot.DEVICE_BATTERY";
+
+    private void robotInit() {
+        mLeftMotorChanged = false;
+        mRightMotorChanged = false;
+        mLeftMotorPercent = 0;
+        mRightMotorPercent = 0;
+
+        mDeviceName = "";
+        mRGB = new int[3];
+        mRGB[0] = mRGB[1] = mRGB[2] = 0xFF;
+
+        mMotorUpdateHandler = new Handler(Looper.getMainLooper());
+        mMotorUpdateHandler.postDelayed(updateMotorCharacteristics, 200);
+    }
+
+    private void robotDeinit() {
+        if (mMotorUpdateHandler != null) {
+            mMotorUpdateHandler.removeCallbacksAndMessages(null);
+        }
+        mMotorUpdateHandler = new Handler(Looper.getMainLooper());
+
+        mRGB = new int[3];
+        mRGB[0] = mRGB[1] = mRGB[2] = 0;
+        mDeviceName = "";
+
+        mLeftMotorChanged = false;
+        mRightMotorChanged = false;
+        mLeftMotorPercent = 0;
+        mRightMotorPercent = 0;
+    }
 
     public void setName(String name) {
         if (! name.equals(mDeviceName)) {
@@ -657,6 +697,12 @@ public class uBristleBotService extends Service {
             cDeviceName.setValue(mDeviceName.getBytes());
         }
     }
+    public String getName() {
+        if (mDeviceName == null)
+            return "";
+        return mDeviceName;
+    }
+
     public void setColor(int r, int g, int b) {
         if (r != mRGB[0] && g != mRGB[1] && b != mRGB[2]) {
             mRGB[0] = r & 0xFF;

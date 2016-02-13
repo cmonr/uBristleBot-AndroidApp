@@ -18,7 +18,6 @@ package com.thenextplateau.ubristlebotcontroller;
 
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothClass;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -29,7 +28,6 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.support.design.widget.Snackbar;
 import android.support.v4.widget.SwipeRefreshLayout;
-import android.support.v7.app.ActionBarActivity;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -44,7 +42,6 @@ import android.widget.TextView;
 
 
 import java.util.ArrayList;
-import java.util.ResourceBundle;
 
 /*
  Activity Flow:
@@ -312,6 +309,7 @@ public class DeviceScanActivity extends AppCompatActivity {
         private ArrayList<String> mDeviceList_Address;
         private ArrayList<Integer> mDeviceList_RSSI;
         private LayoutInflater mInflator;
+        private ViewGroup mParent;
 
         public LeDeviceListAdapter() {
             super();
@@ -321,6 +319,8 @@ public class DeviceScanActivity extends AppCompatActivity {
             mDeviceList_RSSI = new ArrayList<>();
 
             mInflator = DeviceScanActivity.this.getLayoutInflater();
+
+            mParent = (ViewGroup) findViewById(R.id.deviceScanContainer);
         }
 
         // Insert new device into list, with strongest RSSI at the top
@@ -364,7 +364,7 @@ public class DeviceScanActivity extends AppCompatActivity {
 
             if (view == null) {
                 // Build new view from scratch
-                view = mInflator.inflate(R.layout.list_item_ble_device, null);
+                view = mInflator.inflate(R.layout.list_item_ble_device, mParent, false);
                 viewHolder = new ViewHolder();
                 viewHolder.deviceAddress = (TextView) view.findViewById(R.id.device_address);
                 viewHolder.deviceName = (TextView) view.findViewById(R.id.device_name);

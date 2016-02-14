@@ -64,7 +64,7 @@
             android:layout_height="wrap_content"
             android:textAppearance="?android:attr/textAppearanceMedium"
             android:id="@+id/rssiTextView"
-            android:layout_gravity="center|bottom"
+            android:layout_gravity="center"
             android:layout_weight="1"
             android:layout_row="1"
             android:layout_column="0"
@@ -79,14 +79,15 @@
             android:id="@+id/settingsIcon"
             android:baselineAlignBottom="true"
             android:src="@drawable/ic_settings_white_36dp"
-            android:layout_gravity="center|bottom"
+            android:layout_gravity="center|top"
             android:layout_weight="1"
             android:layout_row="2"
             android:layout_column="0"
             android:layout_columnSpan="1"
             android:layout_columnWeight="1"
             android:layout_rowSpan="1"
-            android:layout_rowWeight="1" />
+            android:layout_rowWeight="2"
+            android:padding="12dp" />
     </GridLayout>
 
     <com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBarWrapper

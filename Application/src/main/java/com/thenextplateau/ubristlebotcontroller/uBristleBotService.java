@@ -210,7 +210,6 @@ public class uBristleBotService extends Service {
                     return;
                 }
             }
-            Log.i(TAG, "Wrote " + characteristic.getUuid().toString());
 
             // Everything went well. Update the next characteristic if needed.
             characteristicWriteList.remove(0);

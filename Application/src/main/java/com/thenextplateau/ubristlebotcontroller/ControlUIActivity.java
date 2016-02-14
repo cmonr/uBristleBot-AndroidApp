@@ -216,30 +216,36 @@ public class ControlUIActivity extends Activity {
                         // Set color
                         switch (colorDropdown.getSelectedItemPosition()) {
                             case 0:
+                                Log.i(TAG, "Setting color to WHITE");
                                 uBristleBot.setColor(255, 255, 255);
                                 break;
                             case 1:
+                                Log.i(TAG, "Setting color to RED");
                                 uBristleBot.setColor(255, 0, 0);
                                 break;
                             case 2:
+                                Log.i(TAG, "Setting color to GREEN");
                                 uBristleBot.setColor(0, 255, 0);
                                 break;
                             case 3:
+                                Log.i(TAG, "Setting color to BLUE");
                                 uBristleBot.setColor(0, 0, 255);
                                 break;
                             case 4:
+                                Log.i(TAG, "Setting color to YELLOW");
                                 uBristleBot.setColor(255, 255, 0);
                                 break;
                             case 5:
+                                Log.i(TAG, "Setting color to MAGENTA");
                                 uBristleBot.setColor(255, 0, 255);
                                 break;
                             case 6:
+                                Log.i(TAG, "Setting color to CYAN");
                                 uBristleBot.setColor(0, 255, 255);
                                 break;
                         }
 
                         // Save settings and disconnect
-                        //  Yes, I was lazy in the BLE code...
                         uBristleBot.saveSettingsAndDisconnect();
                     }
                 })

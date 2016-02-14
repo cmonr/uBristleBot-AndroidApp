@@ -96,6 +96,11 @@ public class uBristleBotService extends Service {
                     Log.e(TAG, "Something happened that shouldn't have...");
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     Log.i(TAG, "Disconnected from Device.");
+
+                    // We're either connected or we're not. No in between.
+                    mBluetoothGatt.close();
+                    mBluetoothGatt = null;
+
                     broadcastUpdate(ACTION_DEVICE_DISCONNECTED);
                 }
             }
@@ -141,15 +146,15 @@ public class uBristleBotService extends Service {
                 if (characteristic.getUuid().equals(C_DEVICE_NAME)) {
                     mDeviceName = new String(characteristic.getValue());
 
-                } else if (characteristic.getUuid().equals(C_BATTERY)) {ac
+                } else if (characteristic.getUuid().equals(C_BATTERY)) {
                     boradcastDeviceBatteryUpdate(characteristic.getValue()[0] & 0xFF);
 
                 } else if (characteristic.getUuid().equals(C_LED_RED)) {
-                    mRGB[0] = characteristic.getValue()[0] & 0xFF;
+                    mRGB[0] = characteristic.getValue()[0];
                 } else if (characteristic.getUuid().equals(C_LED_GREEN)) {
-                    mRGB[1] = characteristic.getValue()[0] & 0xFF;
+                    mRGB[1] = characteristic.getValue()[0];
                 } else if (characteristic.getUuid().equals(C_LED_BLUE)) {
-                    mRGB[2] = characteristic.getValue()[0] & 0xFF;
+                    mRGB[2] = characteristic.getValue()[0];
 
                     // That's the last of them!
                     // Complete the remaining device init
@@ -216,7 +221,7 @@ public class uBristleBotService extends Service {
 
             // If we've just saved settings, we're about to be disconnected.
             //  Preempt this.
-            if (characteristic.getUuid().equals(C_SAVE_CHANGES))) {
+            if (characteristic.getUuid().equals(C_SAVE_CHANGES)) {
                 Log.d(TAG, "Disconnecting after saving settings");
                 disconnect();
             }
@@ -536,10 +541,6 @@ public class uBristleBotService extends Service {
         robotDeinit();
 
         mBluetoothGatt.disconnect();
-
-        // We're either connected or we're not. No in between.
-        mBluetoothGatt.close();
-        mBluetoothGatt = null;
     }
 
 
@@ -571,7 +572,7 @@ public class uBristleBotService extends Service {
 
     // uBristleBot info we care about
     private static String mDeviceName;
-    private int[] mRGB;
+    private byte[] mRGB;
 
     public void initBLECharacteristics(List<BluetoothGattService> servicesDiscovered) {
         // Initialize all internal Characteristics
@@ -675,8 +676,8 @@ public class uBristleBotService extends Service {
         mRightMotorPercent = 0;
 
         mDeviceName = "";
-        mRGB = new int[3];
-        mRGB[0] = mRGB[1] = mRGB[2] = 0xFF;
+        mRGB = new byte[3];
+        mRGB[0] = mRGB[1] = mRGB[2] = (byte) 255;
 
         mMotorUpdateHandler = new Handler(Looper.getMainLooper());
         mMotorUpdateHandler.postDelayed(updateMotorCharacteristics, 100);
@@ -696,8 +697,8 @@ public class uBristleBotService extends Service {
         }
         mRSSIUpdateHandler = new Handler(Looper.getMainLooper());
 
-        mRGB = new int[3];
-        mRGB[0] = mRGB[1] = mRGB[2] = 0;
+        mRGB = new byte[3];
+        mRGB[0] = mRGB[1] = mRGB[2] = (byte) 255;
         mDeviceName = "";
 
         mLeftMotorChanged = false;
@@ -721,18 +722,10 @@ public class uBristleBotService extends Service {
     }
 
     public void setColor(int r, int g, int b) {
-        mRGB[0] = r & 0xFF;
-        mRGB[1] = g & 0xFF;
-        mRGB[2] = b & 0xFF;
-
         // Update characteristics
-        byte[] tmp = new byte[1];
-        tmp[0] = (byte) (mRGB[0] & 0xFF);
-        cLED_R.setValue(tmp);
-        tmp[0] = (byte) (mRGB[1] & 0xFF);
-        cLED_G.setValue(tmp);
-        tmp[0] = (byte) (mRGB[2] & 0xFF);
-        cLED_B.setValue(tmp);
+        cLED_R.setValue(r, BluetoothGattCharacteristic.FORMAT_UINT8, 0);
+        cLED_G.setValue(g, BluetoothGattCharacteristic.FORMAT_UINT8, 0);
+        cLED_B.setValue(b, BluetoothGattCharacteristic.FORMAT_UINT8, 0);
     }
     public void setLeftMotor(int percent) {
         if (percent < 0 || percent > 100)
@@ -758,13 +751,16 @@ public class uBristleBotService extends Service {
         // Add characteristics to write queue
         characteristicWriteList.clear();
         characteristicWriteList.add(cDeviceName);
+        Log.i(TAG, "Setting name to " + new String(cDeviceName.getValue()));
+
         characteristicWriteList.add(cLED_R);
         characteristicWriteList.add(cLED_G);
         characteristicWriteList.add(cLED_B);
+        Log.i(TAG, "Setting LEDs to " + String.valueOf(cLED_R.getValue()[0] & 0xFF) + "," + String.valueOf(cLED_G.getValue()[0] & 0xFF) + "," + String.valueOf(cLED_B.getValue()[0] & 0xFF));
 
         // Set characteristic that will make these settings stick on the device
         byte[] tmp = new byte[1];
-        tmp[0] = 1 & 0xFF;
+        tmp[0] = (byte) 0x01;
         cSave.setValue(tmp);
         characteristicWriteList.add(cSave);
 

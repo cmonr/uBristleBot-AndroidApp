@@ -241,8 +241,6 @@ public class ControlUIActivity extends Activity {
                         // Save settings and disconnect
                         //  Yes, I was lazy in the BLE code...
                         uBristleBot.saveSettingsAndDisconnect();
-
-                        onBackPressed();
                     }
                 })
                 .setNegativeButton(R.string.cancel, null)

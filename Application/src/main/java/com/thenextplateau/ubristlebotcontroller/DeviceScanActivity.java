@@ -17,10 +17,12 @@
 package com.thenextplateau.ubristlebotcontroller;
 
 import android.app.Activity;
+import android.app.ProgressDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
@@ -69,6 +71,8 @@ public class DeviceScanActivity extends AppCompatActivity {
     private ListView mDeviceList;
     private LeDeviceListAdapter mLeDeviceListAdapter;
 
+    private ProgressDialog mConnectionStatusDialog;
+
     private static final int REQUEST_ENABLE_BT = 1;
 
 
@@ -82,8 +86,6 @@ public class DeviceScanActivity extends AppCompatActivity {
             uBristleBot = ((uBristleBotService.LocalBinder) service).getService();
             if (uBristleBot.initialize() != uBristleBotService.INIT_ERROR_NONE) {
                 Log.e(TAG, "Unable to initialize uBristleBotService");
-
-                // TODO: Display useful messages to user
 
                 finish();
                 return;
@@ -139,11 +141,7 @@ public class DeviceScanActivity extends AppCompatActivity {
                 snackbar.show();
 
             } else if (uBristleBotService.ACTION_CONNECTED.equals(action)) {
-                Snackbar snackbar = Snackbar.make(
-                        mRefreshLayout,
-                        "WE CONNECTED!",
-                        Snackbar.LENGTH_SHORT);
-                snackbar.show();
+                mConnectionStatusDialog.dismiss();
 
                 startDeviceScan(false);
 
@@ -197,10 +195,26 @@ public class DeviceScanActivity extends AppCompatActivity {
         mDeviceList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                if (!uBristleBot.isConnecting()) {
+                if (! uBristleBot.isConnecting()) {
                     // Connect to device selected
                     uBristleBot.connectTo((String) mLeDeviceListAdapter.getItem(position));
+
+                    // Show a status dialog
+                    mConnectionStatusDialog.setMessage("Connecting...");
+                    mConnectionStatusDialog.show();
                 }
+            }
+        });
+
+        // Setup Progress Dialog
+        mConnectionStatusDialog = new ProgressDialog(this);
+        mConnectionStatusDialog.setCancelable(true);
+        mConnectionStatusDialog.setCanceledOnTouchOutside(true);
+        mConnectionStatusDialog.setOnCancelListener(new DialogInterface.OnCancelListener() {
+            @Override
+            public void onCancel(DialogInterface dialog) {
+                // Stop connecting to device
+                uBristleBot.disconnect();
             }
         });
     }

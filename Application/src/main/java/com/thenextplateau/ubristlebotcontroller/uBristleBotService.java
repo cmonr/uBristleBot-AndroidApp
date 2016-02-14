@@ -141,7 +141,7 @@ public class uBristleBotService extends Service {
                 if (characteristic.getUuid().equals(C_DEVICE_NAME)) {
                     mDeviceName = new String(characteristic.getValue());
 
-                } else if (characteristic.getUuid().equals(C_BATTERY)) {
+                } else if (characteristic.getUuid().equals(C_BATTERY)) {ac
                     boradcastDeviceBatteryUpdate(characteristic.getValue()[0] & 0xFF);
 
                 } else if (characteristic.getUuid().equals(C_LED_RED)) {
@@ -205,7 +205,7 @@ public class uBristleBotService extends Service {
                     return;
                 }
             }
-            Log.d(TAG, "BLE Characteristic Write succeeded");
+            Log.i(TAG, "Wrote " + characteristic.getUuid().toString());
 
             // Everything went well. Update the next characteristic if needed.
             characteristicWriteList.remove(0);
@@ -216,7 +216,8 @@ public class uBristleBotService extends Service {
 
             // If we've just saved settings, we're about to be disconnected.
             //  Preempt this.
-            if (characteristic.getUuid().equals(cSave.getUuid())) {
+            if (characteristic.getUuid().equals(C_SAVE_CHANGES))) {
+                Log.d(TAG, "Disconnecting after saving settings");
                 disconnect();
             }
         }
@@ -645,7 +646,7 @@ public class uBristleBotService extends Service {
             }
 
             // Do it again!
-            mMotorUpdateHandler.postDelayed(updateMotorCharacteristics, 200);
+            mMotorUpdateHandler.postDelayed(updateMotorCharacteristics, 100);
         }
     };
     private static Handler mRSSIUpdateHandler;
@@ -678,7 +679,7 @@ public class uBristleBotService extends Service {
         mRGB[0] = mRGB[1] = mRGB[2] = 0xFF;
 
         mMotorUpdateHandler = new Handler(Looper.getMainLooper());
-        mMotorUpdateHandler.postDelayed(updateMotorCharacteristics, 200);
+        mMotorUpdateHandler.postDelayed(updateMotorCharacteristics, 100);
 
         mRSSIUpdateHandler = new Handler(Looper.getMainLooper());
         mRSSIUpdateHandler.postDelayed(updateRSSI, 1000);
@@ -720,20 +721,18 @@ public class uBristleBotService extends Service {
     }
 
     public void setColor(int r, int g, int b) {
-        if (r != mRGB[0] && g != mRGB[1] && b != mRGB[2]) {
-            mRGB[0] = r & 0xFF;
-            mRGB[1] = g & 0xFF;
-            mRGB[2] = b & 0xFF;
+        mRGB[0] = r & 0xFF;
+        mRGB[1] = g & 0xFF;
+        mRGB[2] = b & 0xFF;
 
-            // Update characteristics
-            byte[] tmp = new byte[1];
-            tmp[0] = (byte) (mRGB[0] & 0xFF);
-            cLED_R.setValue(tmp);
-            tmp[0] = (byte) (mRGB[1] & 0xFF);
-            cLED_G.setValue(tmp);
-            tmp[0] = (byte) (mRGB[2] & 0xFF);
-            cLED_B.setValue(tmp);
-        }
+        // Update characteristics
+        byte[] tmp = new byte[1];
+        tmp[0] = (byte) (mRGB[0] & 0xFF);
+        cLED_R.setValue(tmp);
+        tmp[0] = (byte) (mRGB[1] & 0xFF);
+        cLED_G.setValue(tmp);
+        tmp[0] = (byte) (mRGB[2] & 0xFF);
+        cLED_B.setValue(tmp);
     }
     public void setLeftMotor(int percent) {
         if (percent < 0 || percent > 100)
@@ -750,6 +749,12 @@ public class uBristleBotService extends Service {
         mRightMotorChanged = true;
     }
     public void saveSettingsAndDisconnect() {
+        // Disable the motor update handler, just in case
+        if (mMotorUpdateHandler != null) {
+            mMotorUpdateHandler.removeCallbacksAndMessages(null);
+        }
+        mMotorUpdateHandler = new Handler(Looper.getMainLooper());
+
         // Add characteristics to write queue
         characteristicWriteList.clear();
         characteristicWriteList.add(cDeviceName);
@@ -757,9 +762,9 @@ public class uBristleBotService extends Service {
         characteristicWriteList.add(cLED_G);
         characteristicWriteList.add(cLED_B);
 
-        // Set characteristic that'll make these settings stick on the device
+        // Set characteristic that will make these settings stick on the device
         byte[] tmp = new byte[1];
-        tmp[0] = 1;
+        tmp[0] = 1 & 0xFF;
         cSave.setValue(tmp);
         characteristicWriteList.add(cSave);
 

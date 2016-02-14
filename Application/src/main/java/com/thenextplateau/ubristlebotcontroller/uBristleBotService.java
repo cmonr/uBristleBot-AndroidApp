@@ -45,8 +45,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Service for managing connection and data communication with a GATT server hosted on a
- * given Bluetooth LE device.
+ * Service for managing the BLE connection between the Activity frontend, and the uBristleBot.
  */
 public class uBristleBotService extends Service {
     private final static String TAG = uBristleBotService.class.getSimpleName();
@@ -623,7 +622,7 @@ public class uBristleBotService extends Service {
                     Log.i(TAG, "Set Left Motor to: " + String.valueOf(mLeftMotorPercent) + "%");
                     mLeftMotorChanged = false;
 
-                    tmp[0] = (byte) ((mLeftMotorPercent * 255) & 0xFF);
+                    tmp[0] = (byte) ((mLeftMotorPercent * 255 / 100) & 0xFF);
                     cMotor_L.setValue(tmp);
 
                     characteristicWriteList.add(cMotor_L);
@@ -632,7 +631,7 @@ public class uBristleBotService extends Service {
                     Log.i(TAG, "Set Right Motor to: " + String.valueOf(mRightMotorPercent) + "%");
                     mRightMotorChanged = false;
 
-                    tmp[0] = (byte) ((mRightMotorPercent * 255) & 0xFF);
+                    tmp[0] = (byte) ((mRightMotorPercent * 255 / 100) & 0xFF);
                     cMotor_R.setValue(tmp);
 
                     characteristicWriteList.add(cMotor_R);
@@ -647,6 +646,15 @@ public class uBristleBotService extends Service {
 
             // Do it again!
             mMotorUpdateHandler.postDelayed(updateMotorCharacteristics, 200);
+        }
+    };
+    private static Handler mRSSIUpdateHandler;
+    private static Runnable updateRSSI = new Runnable() {
+        @Override
+        public void run() {
+            mBluetoothGatt.readRemoteRssi();
+
+            mRSSIUpdateHandler.postDelayed(updateRSSI, 1000);
         }
     };
 
@@ -671,6 +679,9 @@ public class uBristleBotService extends Service {
 
         mMotorUpdateHandler = new Handler(Looper.getMainLooper());
         mMotorUpdateHandler.postDelayed(updateMotorCharacteristics, 200);
+
+        mRSSIUpdateHandler = new Handler(Looper.getMainLooper());
+        mRSSIUpdateHandler.postDelayed(updateRSSI, 1000);
     }
 
     private void robotDeinit() {
@@ -678,6 +689,11 @@ public class uBristleBotService extends Service {
             mMotorUpdateHandler.removeCallbacksAndMessages(null);
         }
         mMotorUpdateHandler = new Handler(Looper.getMainLooper());
+
+        if (mRSSIUpdateHandler != null) {
+            mRSSIUpdateHandler.removeCallbacksAndMessages(null);
+        }
+        mRSSIUpdateHandler = new Handler(Looper.getMainLooper());
 
         mRGB = new int[3];
         mRGB[0] = mRGB[1] = mRGB[2] = 0;

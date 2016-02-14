@@ -83,7 +83,7 @@ public class DeviceScanActivity extends AppCompatActivity {
             if (uBristleBot.initialize() != uBristleBotService.INIT_ERROR_NONE) {
                 Log.e(TAG, "Unable to initialize uBristleBotService");
 
-                // TODO: Display useful message to user
+                // TODO: Display useful messages to user
 
                 finish();
                 return;

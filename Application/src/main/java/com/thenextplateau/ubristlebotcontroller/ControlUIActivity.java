@@ -31,12 +31,20 @@ import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
+import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
 
-/**
- * TODO: Fill this out...
+/*
+ Activity Flow:
+ - Connect to uBristleBot Service
+   - Failed? Peace out...
+
+ - On Seekbar change, Set Motor Percentage
+ - On Icon Long Press, Open Settings Dialog
+
+ - On Settings Dialog confirmation, set name and color, and disconnect
  */
 public class ControlUIActivity extends Activity {
     private static final String TAG = ControlUIActivity.class.getSimpleName();
@@ -45,10 +53,10 @@ public class ControlUIActivity extends Activity {
 
     // Dialogs
     private static AlertDialog mDialog_Settings;
-    private static View mDialog_View;
-    private static TextView mDialog_Text_DeviceName;
-    private static Spinner mDialog_ColorChooser;
 
+    // Text Views
+    private static TextView batteryView;
+    private static TextView rssiView;
 
     //
     // Handle uBristleBotService connection
@@ -61,8 +69,6 @@ public class ControlUIActivity extends Activity {
             if (uBristleBot.initialize() != uBristleBotService.INIT_ERROR_NONE) {
                 Log.e(TAG, "Unable to initialize uBristleBotService");
 
-                // TODO: Display useful message to user
-
                 onBackPressed();
                 return;
             }
@@ -70,11 +76,7 @@ public class ControlUIActivity extends Activity {
             if (! uBristleBot.isConnected()) {
                 Log.e(TAG, "uBristleBotService not connected to device");
 
-
-                // TODO: Display useful message to user
-
                 onBackPressed();
-                return;
             }
         }
 
@@ -97,9 +99,9 @@ public class ControlUIActivity extends Activity {
 
 
             if (uBristleBotService.ACTION_DEVICE_RSSI_CHANGED.equals(action)) {
-
+                rssiView.setText(String.valueOf(intent.getIntExtra(uBristleBotService.DEVICE_RSSI, -999)) + " dBm");
             } else if (uBristleBotService.ACTION_DEVICE_BATTERY_CHANGED.equals(action)) {
-                Log.i(TAG, "Battery: " + String.valueOf(intent.getIntExtra(uBristleBotService.DEVICE_BATTERY, -1)) + "%");
+                batteryView.setText(String.valueOf(intent.getIntExtra(uBristleBotService.DEVICE_BATTERY, -1)) + "%");
             } else if (uBristleBotService.ACTION_DEVICE_DISCONNECTED.equals(action)) {
                 Log.e(TAG, "Connection lost");
 
@@ -139,7 +141,11 @@ public class ControlUIActivity extends Activity {
             }
         });*/
 
+        //
         // Setup UI actions
+        //
+
+        // Motor Control
         SeekBar leftSeekbar = (SeekBar) findViewById(R.id.motor_left);
         leftSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
@@ -176,8 +182,15 @@ public class ControlUIActivity extends Activity {
             }
         });
 
-        View ledIcon = findViewById(R.id.led_icon);
-        ledIcon.setOnLongClickListener(new View.OnLongClickListener() {
+        // Battery Indicator
+        batteryView = (TextView) findViewById(R.id.batteryTextView);
+
+        // RSSI Indicator
+        rssiView = (TextView) findViewById(R.id.rssiTextView);
+
+        // Settings Dialog
+        ImageView mSettingsIcon = (ImageView) findViewById(R.id.settingsIcon);
+        mSettingsIcon.setOnLongClickListener(new View.OnLongClickListener() {
             @Override
             public boolean onLongClick(View v) {
                 mDialog_Settings.show();
@@ -185,29 +198,60 @@ public class ControlUIActivity extends Activity {
             }
         });
 
-
-        // Setup Settings Dialog
         ViewGroup mParent = (ViewGroup) findViewById(R.id.controllerUIContainer);
-        mDialog_View = this.getLayoutInflater().inflate(R.layout.dialog_device_settings, mParent, false);
+        View mDialog_View = this.getLayoutInflater().inflate(R.layout.dialog_device_settings, mParent, false);
         mDialog_Settings = new AlertDialog.Builder(this)
                 .setView(mDialog_View)
                 .setPositiveButton(R.string.set, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int which) {
-                        // TODO
-                        //uBristleBot.setName();
-                        //uBristleBot.setColor();
+                        TextView deviceName = (TextView) ((AlertDialog) dialog).findViewById(R.id.dialog_text_device_name);
+                        Spinner colorDropdown = (Spinner) ((AlertDialog) dialog).findViewById(R.id.dialog_spinner_color_dropdown);
+
+                        // Set name
+                        if (deviceName.getText().equals("")) {
+                            return;
+                        }
+                        uBristleBot.setName(String.valueOf(deviceName.getText()));
+
+                        // Set color
+                        switch (colorDropdown.getSelectedItemPosition()) {
+                            case 0:
+                                uBristleBot.setColor(255, 255, 255);
+                                break;
+                            case 1:
+                                uBristleBot.setColor(255, 0, 0);
+                                break;
+                            case 2:
+                                uBristleBot.setColor(0, 255, 0);
+                                break;
+                            case 3:
+                                uBristleBot.setColor(0, 0, 255);
+                                break;
+                            case 4:
+                                uBristleBot.setColor(255, 255, 0);
+                                break;
+                            case 5:
+                                uBristleBot.setColor(255, 0, 255);
+                                break;
+                            case 6:
+                                uBristleBot.setColor(0, 255, 255);
+                                break;
+                        }
+
+                        // Save settings and disconnect
+                        //  Yes, I was lazy in the BLE code...
+                        uBristleBot.saveSettingsAndDisconnect();
+
+                        onBackPressed();
                     }
                 })
                 .setNegativeButton(R.string.cancel, null)
                 .create();
 
-        mDialog_Text_DeviceName = (TextView) mDialog_View.findViewById(R.id.text_device_name);
-
         ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(mDialog_View.getContext(),
                 R.array.led_colors, android.R.layout.simple_spinner_dropdown_item);
-        mDialog_ColorChooser = (Spinner) mDialog_View.findViewById(R.id.color_dropdown);
+        Spinner mDialog_ColorChooser = (Spinner) mDialog_View.findViewById(R.id.dialog_spinner_color_dropdown);
         mDialog_ColorChooser.setAdapter(adapter);
-
 
         //getActionBar().setTitle(uBristleBot.getName());
     }

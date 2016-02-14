@@ -32,7 +32,9 @@
     <string name="motor_left">Left Motor</string>
 
     <!-- Dialog -->
-    <string name="set">Set</string>
+    <string name="dialog_device_name">Device Name:</string>
+    <string name="dialog_color_choice">LED Color:</string>
+    <string name="set">Set and Disconnect</string>
     <string name="cancel">Cancel</string>
 
 </resources>

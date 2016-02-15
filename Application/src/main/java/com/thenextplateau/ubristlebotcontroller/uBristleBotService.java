@@ -617,14 +617,13 @@ public class uBristleBotService extends Service {
         public void run() {
             // Only write new values once the queue is empty
             if (characteristicWriteList.isEmpty()) {
-                byte[] tmp = new byte[1];
-
                 if (mLeftMotorChanged) {
                     Log.i(TAG, "Set Left Motor to: " + String.valueOf(mLeftMotorPercent) + "%");
                     mLeftMotorChanged = false;
 
-                    tmp[0] = (byte) ((mLeftMotorPercent * 255 / 100) & 0xFF);
-                    cMotor_L.setValue(tmp);
+                    cMotor_L.setValue(mLeftMotorPercent * 255 / 100,
+                            BluetoothGattCharacteristic.FORMAT_UINT8,
+                            0);
 
                     characteristicWriteList.add(cMotor_L);
                 }
@@ -632,8 +631,9 @@ public class uBristleBotService extends Service {
                     Log.i(TAG, "Set Right Motor to: " + String.valueOf(mRightMotorPercent) + "%");
                     mRightMotorChanged = false;
 
-                    tmp[0] = (byte) ((mRightMotorPercent * 255 / 100) & 0xFF);
-                    cMotor_R.setValue(tmp);
+                    cMotor_R.setValue(mRightMotorPercent * 255 / 100,
+                            BluetoothGattCharacteristic.FORMAT_UINT8,
+                            0);
 
                     characteristicWriteList.add(cMotor_R);
                 }
@@ -643,19 +643,53 @@ public class uBristleBotService extends Service {
                     Log.i(TAG, "Writing BLE Characteristic");
                     mBluetoothGatt.writeCharacteristic(characteristicWriteList.get(0));
                 }
+            } else if ((mLeftMotorChanged && mLeftMotorPercent == 0) ||
+                    (mRightMotorChanged && mRightMotorPercent == 0)) {
+                // A special condition can occur in the UI if messages are backed up
+                //  and the user sets the motor to 0.
+                //  This can eventually get corrected, but we're going to prioritize that 0.
+
+                // Remove other queued commands aside for the first (since it's already in progress)
+                while (characteristicWriteList.size() > 1) {
+                    characteristicWriteList.remove(1);
+                }
+
+                // Setup new commands
+                if (mLeftMotorPercent == 0) {
+                    Log.i(TAG, "Special condition found. Zeroing Left Motor");
+                    mLeftMotorChanged = false;
+
+                    cMotor_L.setValue(mLeftMotorPercent * 255 / 100,
+                            BluetoothGattCharacteristic.FORMAT_UINT8,
+                            0);
+
+                    characteristicWriteList.add(cMotor_L);
+                }
+                if (mRightMotorPercent == 0) {
+                    Log.i(TAG, "Special condition found. Zeroing Right Motor");
+                    mRightMotorChanged = false;
+
+                    cMotor_R.setValue(mRightMotorPercent * 255 / 100,
+                            BluetoothGattCharacteristic.FORMAT_UINT8,
+                            0);
+
+                    characteristicWriteList.add(cMotor_R);
+                }
             }
 
             // Do it again!
-            mMotorUpdateHandler.postDelayed(updateMotorCharacteristics, 100);
+            mMotorUpdateHandler.postDelayed(updateMotorCharacteristics, 200);
         }
     };
     private static Handler mRSSIUpdateHandler;
     private static Runnable updateRSSI = new Runnable() {
         @Override
         public void run() {
-            mBluetoothGatt.readRemoteRssi();
+            if (mBluetoothGatt != null) {
+                mBluetoothGatt.readRemoteRssi();
 
-            mRSSIUpdateHandler.postDelayed(updateRSSI, 1000);
+                mRSSIUpdateHandler.postDelayed(updateRSSI, 1000);
+            }
         }
     };
 
@@ -679,7 +713,7 @@ public class uBristleBotService extends Service {
         mRGB[0] = mRGB[1] = mRGB[2] = (byte) 255;
 
         mMotorUpdateHandler = new Handler(Looper.getMainLooper());
-        mMotorUpdateHandler.postDelayed(updateMotorCharacteristics, 100);
+        mMotorUpdateHandler.postDelayed(updateMotorCharacteristics, 200);
 
         mRSSIUpdateHandler = new Handler(Looper.getMainLooper());
         mRSSIUpdateHandler.postDelayed(updateRSSI, 1000);

@@ -24,8 +24,9 @@
 
     <string name="unknown_device">Unknown device</string>
 
-    <!-- Menu Items -->
-    <string name="menu_rescan">Rescan</string>
+    <!-- Activity Titles -->
+    <string name="device_scan_title">Scanning...</string>>
+
 
     <!-- UI Elements -->
     <string name="motor_right">Right Motor</string>

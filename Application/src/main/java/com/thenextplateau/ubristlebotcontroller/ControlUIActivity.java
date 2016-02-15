@@ -77,7 +77,13 @@ public class ControlUIActivity extends Activity {
                 Log.e(TAG, "uBristleBotService not connected to device");
 
                 onBackPressed();
+                return;
             }
+
+            // Set Device Name
+            TextView deviceNameText = (TextView) findViewById(R.id.text_device_name);
+            deviceNameText.setText(uBristleBot.getName());
+
         }
 
         @Override
@@ -132,17 +138,18 @@ public class ControlUIActivity extends Activity {
         bindService(uBristleBotServiceIntent, mServiceConnection, BIND_AUTO_CREATE);
 
 
-        /*// Setup Immersive View
+        // Setup Immersive View
         View decorView = enterImmersiveView();
         decorView.setOnSystemUiVisibilityChangeListener(new View.OnSystemUiVisibilityChangeListener() {
             @Override
             public void onSystemUiVisibilityChange(int visibility) {
                 enterImmersiveView();
             }
-        });*/
+        });
+
 
         //
-        // Setup UI actions
+        // Setup UI
         //
 
         // Motor Control
@@ -284,9 +291,7 @@ public class ControlUIActivity extends Activity {
     }
 
 
-
-
-    /*private View enterImmersiveView() {
+    private View enterImmersiveView() {
         View mDecorView = getWindow().getDecorView();
         mDecorView.setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_LAYOUT_STABLE
@@ -297,5 +302,5 @@ public class ControlUIActivity extends Activity {
                         | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
 
         return mDecorView;
-*/
+    }
 }

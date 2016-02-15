@@ -16,7 +16,9 @@
 
 package com.thenextplateau.ubristlebotcontroller;
 
+import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.content.BroadcastReceiver;
@@ -26,15 +28,16 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.support.annotation.NonNull;
 import android.support.design.widget.Snackbar;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.LayoutInflater;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
@@ -73,7 +76,9 @@ public class DeviceScanActivity extends AppCompatActivity {
 
     private ProgressDialog mConnectionStatusDialog;
 
-    private static final int REQUEST_ENABLE_BT = 1;
+    private static final int REQUEST_ENABLE_BLUETOOTH = 1;
+    private static final int PERMISSION_REQUEST_COARSE_LOCATION = 2;
+
 
 
     //
@@ -118,7 +123,7 @@ public class DeviceScanActivity extends AppCompatActivity {
             if (uBristleBotService.ACTION_BLUETOOTH_IS_DISABLED.equals(action)) {
                 // Re-enable Bluetooth
                 Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-                startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
+                startActivityForResult(enableBtIntent, REQUEST_ENABLE_BLUETOOTH);
 
             } else if (uBristleBotService.ACTION_DEVICE_FOUND.equals(action)) {
                 // Add to UI List
@@ -173,6 +178,15 @@ public class DeviceScanActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_device_scan);
 
+
+        // Android M requires additional permissions at runtime
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (this.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.ACCESS_COARSE_LOCATION}, PERMISSION_REQUEST_COARSE_LOCATION);
+            }
+        }
+
+
         // Connect to uBristleBot Service
         Intent uBristleBotServiceIntent = new Intent(this, uBristleBotService.class);
         bindService(uBristleBotServiceIntent, mServiceConnection, BIND_AUTO_CREATE);
@@ -190,12 +204,19 @@ public class DeviceScanActivity extends AppCompatActivity {
                     }
                 }
         );
+        // Workaround for Progress not being shown the first time
+        mRefreshLayout.post(new Runnable() {
+            @Override public void run() {
+                mRefreshLayout.setRefreshing(true);
+            }
+        });
+
 
         mDeviceList = (ListView) findViewById(R.id.deviceList);
         mDeviceList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                if (! uBristleBot.isConnecting()) {
+                if (!uBristleBot.isConnecting()) {
                     // Connect to device selected
                     uBristleBot.connectTo((String) mLeDeviceListAdapter.getItem(position));
 
@@ -223,6 +244,8 @@ public class DeviceScanActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
 
+
+
         // Get updates from Service
         registerReceiver(mUpdateReceiver, makeUpdateIntentFilter());
 
@@ -241,6 +264,8 @@ public class DeviceScanActivity extends AppCompatActivity {
 
         // Stop scanning for devices
         startDeviceScan(false);
+
+        mConnectionStatusDialog.dismiss();
     }
 
     @Override
@@ -259,7 +284,7 @@ public class DeviceScanActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         // User did not enable Bluetooth
-        if (requestCode == REQUEST_ENABLE_BT && resultCode == Activity.RESULT_CANCELED) {
+        if (requestCode == REQUEST_ENABLE_BLUETOOTH && resultCode == Activity.RESULT_CANCELED) {
             finish();
             return;
         } else {
@@ -270,24 +295,29 @@ public class DeviceScanActivity extends AppCompatActivity {
     }
 
     @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.activity_device_scan_menu, menu);
-        return true;
-    }
+    public void onRequestPermissionsResult(int requestCode,
+                                           @NonNull String permissions[],
+                                           @NonNull int[] grantResults) {
+        switch (requestCode) {
+            case PERMISSION_REQUEST_COARSE_LOCATION: {
+                if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    Log.d(TAG, "coarse location permission granted");
+                } else {
+                    final AlertDialog.Builder builder = new AlertDialog.Builder(this);
+                    builder.setTitle("Functionality limited");
+                    builder.setMessage("Since location access has not been granted, this app will not be able to discover beacons when in the background.");
+                    builder.setPositiveButton(android.R.string.ok, null);
+                    builder.setOnDismissListener(new DialogInterface.OnDismissListener() {
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.menu_rescan:
-                Log.i(TAG, "Rescan Menu Item selected");
+                        @Override
+                        public void onDismiss(DialogInterface dialog) {
+                        }
 
-                // Start scanning for devices
-                startDeviceScan(true);
-
-                return true;
+                    });
+                    builder.show();
+                }
+            }
         }
-
-        return super.onOptionsItemSelected(item);
     }
 
     private void startDeviceScan(boolean startScan) {
@@ -339,16 +369,24 @@ public class DeviceScanActivity extends AppCompatActivity {
 
         // Insert new device into list, with strongest RSSI at the top
         public void addDevice(String name, String address, int rssi) {
-            int index = 0;
-            for (; index < mDeviceList_RSSI.size(); index++) {
-                if (rssi >= mDeviceList_RSSI.get(index)) {
-                    break;
+            if (mDeviceList_Address.contains(address)) {
+                // Update entry
+                int index = mDeviceList_Address.indexOf(address);
+                mDeviceList_Name.set(index, name);
+                mDeviceList_RSSI.set(index, rssi);
+            } else {
+                // Add new entry
+                int index = 0;
+                for (; index < mDeviceList_RSSI.size(); index++) {
+                    if (rssi >= mDeviceList_RSSI.get(index)) {
+                        break;
+                    }
                 }
-            }
 
-            mDeviceList_Name.add(index, name);
-            mDeviceList_Address.add(index, address);
-            mDeviceList_RSSI.add(index, rssi);
+                mDeviceList_Name.add(index, name);
+                mDeviceList_Address.add(index, address);
+                mDeviceList_RSSI.add(index, rssi);
+            }
         }
 
         public void clear() {

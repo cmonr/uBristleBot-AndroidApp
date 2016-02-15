@@ -30,10 +30,9 @@ import android.os.IBinder;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ArrayAdapter;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.SeekBar;
-import android.widget.Spinner;
 import android.widget.TextView;
 
 /*
@@ -52,6 +51,7 @@ public class ControlUIActivity extends Activity {
     private uBristleBotService uBristleBot;
 
     // Dialogs
+    private static View mDialog_View;
     private static AlertDialog mDialog_Settings;
 
     // Text Views
@@ -84,6 +84,17 @@ public class ControlUIActivity extends Activity {
             TextView deviceNameText = (TextView) findViewById(R.id.text_device_name);
             deviceNameText.setText(uBristleBot.getName());
 
+            // Populate dialog field with name
+            ((EditText) mDialog_View.findViewById(R.id.dialog_text_device_name)).
+                    setText(uBristleBot.getName());
+
+            // Set RGB sliders to current value
+            ((SeekBar) mDialog_View.findViewById(R.id.seekbar_led_color_red)).
+                    setProgress(uBristleBot.getColor()[0] * 100 / 255);
+            ((SeekBar) mDialog_View.findViewById(R.id.seekbar_led_color_green)).
+                    setProgress(uBristleBot.getColor()[1] * 100 / 255);
+            ((SeekBar) mDialog_View.findViewById(R.id.seekbar_led_color_blue)).
+                    setProgress(uBristleBot.getColor()[2] * 100 / 255);
         }
 
         @Override
@@ -205,52 +216,30 @@ public class ControlUIActivity extends Activity {
             }
         });
 
+
+        //
+        // Setup Settings Dialog
+        //
         ViewGroup mParent = (ViewGroup) findViewById(R.id.controllerUIContainer);
-        View mDialog_View = this.getLayoutInflater().inflate(R.layout.dialog_device_settings, mParent, false);
+        mDialog_View = this.getLayoutInflater().inflate(R.layout.dialog_device_settings, mParent, false);
         mDialog_Settings = new AlertDialog.Builder(this)
                 .setView(mDialog_View)
                 .setPositiveButton(R.string.set, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int which) {
-                        TextView deviceName = (TextView) ((AlertDialog) dialog).findViewById(R.id.dialog_text_device_name);
-                        Spinner colorDropdown = (Spinner) ((AlertDialog) dialog).findViewById(R.id.dialog_spinner_color_dropdown);
+                        EditText deviceName = (EditText) ((AlertDialog) dialog).findViewById(R.id.dialog_text_device_name);
+                        SeekBar red = (SeekBar) mDialog_View.findViewById(R.id.seekbar_led_color_red);
+                        SeekBar green = (SeekBar) mDialog_View.findViewById(R.id.seekbar_led_color_green);
+                        SeekBar blue = (SeekBar) mDialog_View.findViewById(R.id.seekbar_led_color_blue);
 
                         // Set name
-                        if (deviceName.getText().equals("")) {
-                            return;
-                        }
                         uBristleBot.setName(String.valueOf(deviceName.getText()));
 
                         // Set color
-                        switch (colorDropdown.getSelectedItemPosition()) {
-                            case 0:
-                                Log.i(TAG, "Setting color to WHITE");
-                                uBristleBot.setColor(255, 255, 255);
-                                break;
-                            case 1:
-                                Log.i(TAG, "Setting color to RED");
-                                uBristleBot.setColor(255, 0, 0);
-                                break;
-                            case 2:
-                                Log.i(TAG, "Setting color to GREEN");
-                                uBristleBot.setColor(0, 255, 0);
-                                break;
-                            case 3:
-                                Log.i(TAG, "Setting color to BLUE");
-                                uBristleBot.setColor(0, 0, 255);
-                                break;
-                            case 4:
-                                Log.i(TAG, "Setting color to YELLOW");
-                                uBristleBot.setColor(255, 255, 0);
-                                break;
-                            case 5:
-                                Log.i(TAG, "Setting color to MAGENTA");
-                                uBristleBot.setColor(255, 0, 255);
-                                break;
-                            case 6:
-                                Log.i(TAG, "Setting color to CYAN");
-                                uBristleBot.setColor(0, 255, 255);
-                                break;
-                        }
+                        uBristleBot.setColor(
+                                red.getProgress() * 255 / 100,
+                                green.getProgress() * 255 / 100,
+                                blue.getProgress() * 255 / 100
+                                );
 
                         // Save settings and disconnect
                         uBristleBot.saveSettingsAndDisconnect();
@@ -258,13 +247,6 @@ public class ControlUIActivity extends Activity {
                 })
                 .setNegativeButton(R.string.cancel, null)
                 .create();
-
-        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(mDialog_View.getContext(),
-                R.array.led_colors, android.R.layout.simple_spinner_dropdown_item);
-        Spinner mDialog_ColorChooser = (Spinner) mDialog_View.findViewById(R.id.dialog_spinner_color_dropdown);
-        mDialog_ColorChooser.setAdapter(adapter);
-
-        //getActionBar().setTitle(uBristleBot.getName());
     }
 
     @Override

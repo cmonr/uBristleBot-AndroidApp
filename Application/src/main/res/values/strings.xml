@@ -14,6 +14,9 @@
      limitations under the License.
 -->
 <resources>
+
+    <string name="app_name">uBristleBot Controller</string>
+
     <string name="ble_not_supported">BLE is not supported</string>
     <string name="label_data">Data:</string>
     <string name="label_device_address">Device address:</string>
@@ -24,17 +27,13 @@
 
     <string name="unknown_device">Unknown device</string>
 
-    <!-- Activity Titles -->
-    <string name="device_scan_title">Scanning...</string>>
-
-
     <!-- UI Elements -->
     <string name="motor_right">Right Motor</string>
     <string name="motor_left">Left Motor</string>
 
     <!-- Dialog -->
-    <string name="dialog_device_name">Device Name:</string>
-    <string name="dialog_color_choice">LED Color:</string>
+    <string name="dialog_device_name">Name:</string>
+    <string name="dialog_color_choice">Color:</string>
     <string name="set">Set and Disconnect</string>
     <string name="cancel">Cancel</string>
 

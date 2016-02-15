@@ -26,11 +26,69 @@
         android:textAppearance="?android:attr/textAppearanceLarge"
         android:text="@string/dialog_color_choice" />
 
-    <Spinner
+    <GridLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:id="@+id/dialog_spinner_color_dropdown"
-        android:layout_gravity="center_horizontal|bottom"
-        android:spinnerMode="dropdown" />
+        android:columnCount="2"
+        android:rowCount="3">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="?android:attr/textAppearanceMedium"
+            android:text="R"
+            android:id="@+id/textView"
+            android:layout_row="0"
+            android:layout_column="0"
+            android:layout_gravity="center" />
+
+        <SeekBar
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:id="@+id/seekbar_led_color_red"
+            android:layout_row="0"
+            android:layout_column="1"
+            android:layout_gravity="fill_horizontal"
+            android:layout_margin="3dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="?android:attr/textAppearanceMedium"
+            android:text="G"
+            android:id="@+id/textView2"
+            android:layout_column="0"
+            android:layout_row="1"
+            android:layout_gravity="center" />
+
+        <SeekBar
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:id="@+id/seekbar_led_color_green"
+            android:layout_row="1"
+            android:layout_column="1"
+            android:layout_gravity="fill_horizontal"
+            android:layout_margin="3dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="?android:attr/textAppearanceMedium"
+            android:text="B"
+            android:id="@+id/textView3"
+            android:layout_column="0"
+            android:layout_row="2"
+            android:layout_gravity="center" />
+
+        <SeekBar
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:id="@+id/seekbar_led_color_blue"
+            android:layout_row="2"
+            android:layout_column="1"
+            android:layout_gravity="fill_horizontal"
+            android:layout_margin="3dp" />
+
+    </GridLayout>
 
 </LinearLayout>

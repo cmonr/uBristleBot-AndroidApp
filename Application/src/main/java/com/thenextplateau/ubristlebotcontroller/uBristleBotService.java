@@ -751,7 +751,7 @@ public class uBristleBotService extends Service {
     public String getName() {
         if (mDeviceName == null)
             return "";
-        return mDeviceName;
+        return mDeviceName.trim();
     }
 
     public void setColor(int r, int g, int b) {
@@ -760,6 +760,10 @@ public class uBristleBotService extends Service {
         cLED_G.setValue(g, BluetoothGattCharacteristic.FORMAT_UINT8, 0);
         cLED_B.setValue(b, BluetoothGattCharacteristic.FORMAT_UINT8, 0);
     }
+    public int[] getColor() {
+        return new int[]{ mRGB[0] & 0xFF, mRGB[1] & 0xFF, mRGB[2] & 0xFF };
+    }
+
     public void setLeftMotor(int percent) {
         if (percent < 0 || percent > 100)
             return;

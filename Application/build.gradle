@@ -6,10 +6,12 @@ buildscript {
 
     dependencies {
         classpath 'com.android.tools.build:gradle:1.2.3'
+        classpath 'com.deploygate:gradle:1.0.2'
     }
 }
 
 apply plugin: 'com.android.application'
+apply plugin: 'deploygate'
 
 repositories {
     jcenter()

@@ -17,6 +17,7 @@
 package com.thenextplateau.ubristlebotcontroller;
 
 import android.annotation.SuppressLint;
+import android.annotation.TargetApi;
 import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
@@ -386,7 +387,7 @@ public class uBristleBotService extends Service {
     }
 
     // Helper function for API differences
-    @SuppressLint("NewApi")
+    //@SuppressLint("NewApi")
     @SuppressWarnings("deprecation")
     private void scanForDevices(boolean startScan) {
         if (startScan) {
@@ -395,20 +396,20 @@ public class uBristleBotService extends Service {
 
                 mIsScanning = true;
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    mBluetoothAdapter.getBluetoothLeScanner().startScan(mScanCallback);
-                } else {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
                     mBluetoothAdapter.startLeScan(mLeScanCallback);
+                } else {
+                    mBluetoothAdapter.getBluetoothLeScanner().startScan(mScanCallback);
                 }
             }
         } else {
             if (mIsScanning) {
                 Log.i(TAG, "Stopping BLE Scan");
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    mBluetoothAdapter.getBluetoothLeScanner().stopScan(mScanCallback);
-                } else {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
                     mBluetoothAdapter.stopLeScan(mLeScanCallback);
+                } else {
+                    mBluetoothAdapter.getBluetoothLeScanner().stopScan(mScanCallback);
                 }
 
                 mIsScanning = false;

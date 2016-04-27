@@ -54,6 +54,7 @@ public class uBristleBotService extends Service {
     private BluetoothManager mBluetoothManager;
     private BluetoothAdapter mBluetoothAdapter;
     private static BluetoothGatt mBluetoothGatt;
+    private Object mScanCallback;
 
 
     //
@@ -314,9 +315,10 @@ public class uBristleBotService extends Service {
     public static final int INIT_ERROR_BLUETOOTH_MANAGER_INIT_FAILED = 2;
     public static final int INIT_ERROR_BLUETOOTH_ADAPTER_INIT_FAILED = 3;
 
+    @TargetApi(19)
+    @SuppressLint("NewApi")
     public int initialize() {
         // Initialize Bluetooth Adapter and perform basic checks
-
         if (! getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
             Log.e(TAG, "BLE is not available on this device");
             return INIT_ERROR_BLE_NOT_AVAILABLE;
@@ -338,6 +340,40 @@ public class uBristleBotService extends Service {
         }
 
         mScanHandler = new Handler(Looper.getMainLooper());
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            mScanCallback = new BluetoothAdapter.LeScanCallback() {
+                @Override
+                public void onLeScan(final BluetoothDevice device, int rssi, byte[] scanRecord) {
+                    Log.i(TAG, "Found BLE device: " + device.getName());
+
+                    broadcastDeviceFoundUpdate(device, rssi);
+                }
+            };
+        } else {
+            mScanCallback = new ScanCallback() {
+                @Override
+                public void onScanResult(int callbackType, @NonNull ScanResult scanResult) {
+                    Log.i(TAG, "Found BLE device: " + scanResult.getDevice().getName());
+
+                    broadcastDeviceFoundUpdate(scanResult.getDevice(), scanResult.getRssi());
+                }
+
+                @Override
+                public void onBatchScanResults(@NonNull List<ScanResult> results) {
+                    for (ScanResult result : results) {
+                        Log.i(TAG, "Found BLE device: " + result.getDevice().getName());
+
+                        broadcastDeviceFoundUpdate(result.getDevice(), result.getRssi());
+                    }
+                }
+
+                @Override
+                public void onScanFailed(int errorCode) {
+                    Log.e(TAG, "BLE Scan failed. Error code " + String.valueOf(errorCode));
+                }
+            };
+        }
 
         return INIT_ERROR_NONE;
     }
@@ -387,7 +423,6 @@ public class uBristleBotService extends Service {
     }
 
     // Helper function for API differences
-    //@SuppressLint("NewApi")
     @SuppressWarnings("deprecation")
     private void scanForDevices(boolean startScan) {
         if (startScan) {
@@ -397,9 +432,9 @@ public class uBristleBotService extends Service {
                 mIsScanning = true;
 
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-                    mBluetoothAdapter.startLeScan(mLeScanCallback);
+                    mBluetoothAdapter.startLeScan((BluetoothAdapter.LeScanCallback) mScanCallback);
                 } else {
-                    mBluetoothAdapter.getBluetoothLeScanner().startScan(mScanCallback);
+                    mBluetoothAdapter.getBluetoothLeScanner().startScan((ScanCallback) mScanCallback);
                 }
             }
         } else {
@@ -407,9 +442,9 @@ public class uBristleBotService extends Service {
                 Log.i(TAG, "Stopping BLE Scan");
 
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-                    mBluetoothAdapter.stopLeScan(mLeScanCallback);
+                    mBluetoothAdapter.stopLeScan((BluetoothAdapter.LeScanCallback) mScanCallback);
                 } else {
-                    mBluetoothAdapter.getBluetoothLeScanner().stopScan(mScanCallback);
+                    mBluetoothAdapter.getBluetoothLeScanner().stopScan((ScanCallback) mScanCallback);
                 }
 
                 mIsScanning = false;
@@ -419,40 +454,6 @@ public class uBristleBotService extends Service {
             }
         }
     }
-
-    @SuppressLint("NewApi")
-    private ScanCallback mScanCallback = new ScanCallback() {
-        @Override
-        public void onScanResult(int callbackType, @NonNull ScanResult scanResult) {
-            Log.i(TAG, "Found BLE device: " + scanResult.getDevice().getName());
-
-            broadcastDeviceFoundUpdate(scanResult.getDevice(), scanResult.getRssi());
-        }
-
-        @Override
-        public void onBatchScanResults(@NonNull List<ScanResult> results) {
-            for (ScanResult result : results) {
-                Log.i(TAG, "Found BLE device: " + result.getDevice().getName());
-
-                broadcastDeviceFoundUpdate(result.getDevice(), result.getRssi());
-            }
-        }
-
-        @Override
-        public void onScanFailed(int errorCode) {
-            Log.e(TAG, "BLE Scan failed. Error code " + String.valueOf(errorCode));
-        }
-    };
-
-    private BluetoothAdapter.LeScanCallback mLeScanCallback  =
-            new BluetoothAdapter.LeScanCallback() {
-                @Override
-                public void onLeScan(final BluetoothDevice device, int rssi, byte[] scanRecord) {
-                    Log.i(TAG, "Found BLE device: " + device.getName());
-
-                    broadcastDeviceFoundUpdate(device, rssi);
-                }
-            };
 
 
     //

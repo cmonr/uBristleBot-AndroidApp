@@ -364,7 +364,7 @@ public class DeviceScanActivity extends AppCompatActivity {
 
             mInflator = DeviceScanActivity.this.getLayoutInflater();
 
-            mParent = (ViewGroup) findViewById(R.id.deviceScanContainer);
+            mParent = (ViewGroup) findViewById(R.id.deviceList);
         }
 
         // Insert new device into list, with strongest RSSI at the top

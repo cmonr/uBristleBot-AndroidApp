@@ -151,12 +151,11 @@ public class uBristleBotService extends Service {
                 } else if (characteristic.getUuid().equals(C_BATTERY)) {
                     boradcastDeviceBatteryUpdate(characteristic.getValue()[0] & 0xFF);
 
-                } else if (characteristic.getUuid().equals(C_LED_RED)) {
-                    mRGB[0] = characteristic.getValue()[0];
-                } else if (characteristic.getUuid().equals(C_LED_GREEN)) {
-                    mRGB[1] = characteristic.getValue()[0];
-                } else if (characteristic.getUuid().equals(C_LED_BLUE)) {
-                    mRGB[2] = characteristic.getValue()[0];
+                } else if (characteristic.getUuid().equals(C_RGB_LEDS)) {
+                    byte[] values = characteristic.getValue();
+                    mRGB[0] = values[0];
+                    mRGB[1] = values[1];
+                    mRGB[2] = values[2];
 
                     // That's the last of them!
                     // Complete the remaining device init
@@ -194,11 +193,11 @@ public class uBristleBotService extends Service {
             if (status != BluetoothGatt.GATT_SUCCESS) {
                 Log.d(TAG, "BLE Characteristic Write failed. Error code: " + status);
                 // Something went wrong...
-                if (characteristic.getUuid().equals(cMotor_L.getUuid()) ||
-                        characteristic.getUuid().equals(cMotor_R.getUuid())) {
-                    // Only resend if motor was set to 0
-                    if (characteristic.getValue()[0] == 0) {
-                        Log.d(TAG, "Rewriting 0");
+                if (characteristic.getUuid().equals(cMotors.getUuid())) {
+                    // Only resend if both motors were set to 0
+                    byte[] values = characteristic.getValue();
+                    if (values[0] == 0 && values[1] == 0) {
+                        Log.d(TAG, "Resending 0");
                         mBluetoothGatt.writeCharacteristic(characteristic);
                         return;
                     }
@@ -550,21 +549,15 @@ public class uBristleBotService extends Service {
     //
     private static final UUID C_DEVICE_NAME = UUID.fromString("00002a00-0000-1000-8000-00805f9b34fb");
     private static final UUID C_BATTERY = UUID.fromString("00002a19-0000-1000-8000-00805f9b34fb");
-    private static final UUID C_LED_RED = UUID.fromString("05664686-5bf2-45a9-83c5-8a927cd2e20c");
-    private static final UUID C_LED_GREEN = UUID.fromString("dc203e1a-bfa0-4647-9693-e923b1585cce");
-    private static final UUID C_LED_BLUE = UUID.fromString("2aacf813-333d-4b6c-b997-45854b8424b1");
-    private static final UUID C_MOTOR_LEFT = UUID.fromString("03957515-5976-41c3-982a-56cb6c4b4a38");
-    private static final UUID C_MOTOR_RIGHT = UUID.fromString("537ef040-0e23-4fdc-80eb-eedd837ad98f");
+    private static final UUID C_RGB_LEDS = UUID.fromString("05664686-5bf2-45a9-83c5-8a927cd2e20c");
+    private static final UUID C_MOTORS = UUID.fromString("03957515-5976-41c3-982a-56cb6c4b4a38");
     private static final UUID C_SAVE_CHANGES = UUID.fromString("a0632df5-f8ad-401b-9f0f-80fd1f43edf3");
 
     // BLE Characteristics
     private static BluetoothGattCharacteristic cDeviceName = null;
     private static BluetoothGattCharacteristic cBattery = null;
-    private static BluetoothGattCharacteristic cLED_R = null;
-    private static BluetoothGattCharacteristic cLED_G = null;
-    private static BluetoothGattCharacteristic cLED_B = null;
-    private static BluetoothGattCharacteristic cMotor_L = null;
-    private static BluetoothGattCharacteristic cMotor_R = null;
+    private static BluetoothGattCharacteristic cLEDs = null;
+    private static BluetoothGattCharacteristic cMotors = null;
     private static BluetoothGattCharacteristic cSave = null;
 
     // BLE Characteristic Read/Write lists
@@ -581,12 +574,9 @@ public class uBristleBotService extends Service {
 
         cBattery = servicesDiscovered.get(1).getCharacteristic(C_BATTERY);
 
-        cLED_R = servicesDiscovered.get(2).getCharacteristic(C_LED_RED);
-        cLED_G = servicesDiscovered.get(2).getCharacteristic(C_LED_GREEN);
-        cLED_B = servicesDiscovered.get(2).getCharacteristic(C_LED_BLUE);
+        cLEDs = servicesDiscovered.get(2).getCharacteristic(C_RGB_LEDS);
 
-        cMotor_L = servicesDiscovered.get(3).getCharacteristic(C_MOTOR_LEFT);
-        cMotor_R = servicesDiscovered.get(3).getCharacteristic(C_MOTOR_RIGHT);
+        cMotors = servicesDiscovered.get(3).getCharacteristic(C_MOTORS);
 
         cSave = servicesDiscovered.get(4).getCharacteristic(C_SAVE_CHANGES);
 
@@ -595,9 +585,7 @@ public class uBristleBotService extends Service {
         characteristicReadList = new ArrayList<>();
         characteristicReadList.add(cDeviceName);
         characteristicReadList.add(cBattery);
-        characteristicReadList.add(cLED_R);
-        characteristicReadList.add(cLED_G);
-        characteristicReadList.add(cLED_B);
+        characteristicReadList.add(cLEDs);
 
         // Setup Write Queue
         characteristicWriteList = new ArrayList<>();
@@ -609,8 +597,7 @@ public class uBristleBotService extends Service {
     //
     // uBristleBot
     //
-    private static boolean mLeftMotorChanged;
-    private static boolean mRightMotorChanged;
+    private static boolean mMotorChanged;
     private static int mLeftMotorPercent;
     private static int mRightMotorPercent;
     private static Handler mMotorUpdateHandler;
@@ -619,25 +606,18 @@ public class uBristleBotService extends Service {
         public void run() {
             // Only write new values once the queue is empty
             if (characteristicWriteList.isEmpty()) {
-                if (mLeftMotorChanged) {
-                    Log.i(TAG, "Set Left Motor to: " + String.valueOf(mLeftMotorPercent) + "%");
-                    mLeftMotorChanged = false;
+                if (mMotorChanged) {
+                    Log.i(TAG, "Left Motor to:   " + String.valueOf(mLeftMotorPercent) + "%");
+                    Log.i(TAG, " Right Motor to: " + String.valueOf(mRightMotorPercent) + "%");
+                    mMotorChanged = false;
 
-                    cMotor_L.setValue(mLeftMotorPercent * 255 / 100,
-                            BluetoothGattCharacteristic.FORMAT_UINT8,
-                            0);
+                    byte[] values = new byte[2];
+                    values[0] = (byte) (mLeftMotorPercent * 255 / 100);
+                    values[1] = (byte) (mRightMotorPercent * 255 / 100);
 
-                    characteristicWriteList.add(cMotor_L);
-                }
-                if (mRightMotorChanged) {
-                    Log.i(TAG, "Set Right Motor to: " + String.valueOf(mRightMotorPercent) + "%");
-                    mRightMotorChanged = false;
+                    cMotors.setValue(values);
 
-                    cMotor_R.setValue(mRightMotorPercent * 255 / 100,
-                            BluetoothGattCharacteristic.FORMAT_UINT8,
-                            0);
-
-                    characteristicWriteList.add(cMotor_R);
+                    characteristicWriteList.add(cMotors);
                 }
 
                 // Write a characteristic as long as either changed
@@ -645,10 +625,9 @@ public class uBristleBotService extends Service {
                     Log.i(TAG, "Writing BLE Characteristic");
                     mBluetoothGatt.writeCharacteristic(characteristicWriteList.get(0));
                 }
-            } else if ((mLeftMotorChanged && mLeftMotorPercent == 0) ||
-                    (mRightMotorChanged && mRightMotorPercent == 0)) {
+            } else if (mMotorChanged && mLeftMotorPercent == 0 && mRightMotorPercent == 0) {
                 // A special condition can occur in the UI if messages are backed up
-                //  and the user sets the motor to 0.
+                //  and the user sets both motors to 0.
                 //  This can eventually get corrected, but we're going to prioritize that 0.
 
                 // Remove other queued commands aside for the first (since it's already in progress)
@@ -657,26 +636,15 @@ public class uBristleBotService extends Service {
                 }
 
                 // Setup new commands
-                if (mLeftMotorPercent == 0) {
-                    Log.i(TAG, "Special condition found. Zeroing Left Motor");
-                    mLeftMotorChanged = false;
+                Log.i(TAG, "Special condition found. Zeroing Left Motor");
+                mMotorChanged = false;
 
-                    cMotor_L.setValue(mLeftMotorPercent * 255 / 100,
-                            BluetoothGattCharacteristic.FORMAT_UINT8,
-                            0);
+                byte[] values = new byte[2];
+                values[0] = 0;
+                values[1] = 0;
+                cMotors.setValue(values);
 
-                    characteristicWriteList.add(cMotor_L);
-                }
-                if (mRightMotorPercent == 0) {
-                    Log.i(TAG, "Special condition found. Zeroing Right Motor");
-                    mRightMotorChanged = false;
-
-                    cMotor_R.setValue(mRightMotorPercent * 255 / 100,
-                            BluetoothGattCharacteristic.FORMAT_UINT8,
-                            0);
-
-                    characteristicWriteList.add(cMotor_R);
-                }
+                characteristicWriteList.add(cMotors);
             }
 
             // Do it again!
@@ -705,8 +673,7 @@ public class uBristleBotService extends Service {
             "com.thenextplateau.ubristlebot.DEVICE_BATTERY";
 
     private void robotInit() {
-        mLeftMotorChanged = false;
-        mRightMotorChanged = false;
+        mMotorChanged = false;
         mLeftMotorPercent = 0;
         mRightMotorPercent = 0;
 
@@ -736,8 +703,7 @@ public class uBristleBotService extends Service {
         mRGB[0] = mRGB[1] = mRGB[2] = (byte) 255;
         mDeviceName = "";
 
-        mLeftMotorChanged = false;
-        mRightMotorChanged = false;
+        mMotorChanged = false;
         mLeftMotorPercent = 0;
         mRightMotorPercent = 0;
     }
@@ -758,9 +724,11 @@ public class uBristleBotService extends Service {
 
     public void setColor(int r, int g, int b) {
         // Update characteristics
-        cLED_R.setValue(r, BluetoothGattCharacteristic.FORMAT_UINT8, 0);
-        cLED_G.setValue(g, BluetoothGattCharacteristic.FORMAT_UINT8, 0);
-        cLED_B.setValue(b, BluetoothGattCharacteristic.FORMAT_UINT8, 0);
+        byte[] values = new byte[3];
+        values[2] = (byte) (r & 0xFF);
+        values[1] = (byte) (g & 0xFF);
+        values[0] = (byte) (b & 0xFF);
+        cLEDs.setValue(values);
     }
     public int[] getColor() {
         return new int[]{ mRGB[0] & 0xFF, mRGB[1] & 0xFF, mRGB[2] & 0xFF };
@@ -775,7 +743,7 @@ public class uBristleBotService extends Service {
             percent = percent / 2 + 50;
 
         mLeftMotorPercent = percent;
-        mLeftMotorChanged = true;
+        mMotorChanged = true;
     }
     public void setRightMotor(int percent) {
         if (percent < 0 || percent > 100)
@@ -786,7 +754,7 @@ public class uBristleBotService extends Service {
             percent = percent / 2 + 50;
 
         mRightMotorPercent = percent;
-        mRightMotorChanged = true;
+        mMotorChanged = true;
     }
     public void saveSettingsAndDisconnect() {
         // Disable the motor update handler, just in case
@@ -800,10 +768,11 @@ public class uBristleBotService extends Service {
         characteristicWriteList.add(cDeviceName);
         Log.i(TAG, "Setting name to " + new String(cDeviceName.getValue()));
 
-        characteristicWriteList.add(cLED_R);
-        characteristicWriteList.add(cLED_G);
-        characteristicWriteList.add(cLED_B);
-        Log.i(TAG, "Setting LEDs to " + String.valueOf(cLED_R.getValue()[0] & 0xFF) + "," + String.valueOf(cLED_G.getValue()[0] & 0xFF) + "," + String.valueOf(cLED_B.getValue()[0] & 0xFF));
+        characteristicWriteList.add(cLEDs);
+        Log.i(TAG, "Setting LEDs to " +
+                String.valueOf(cLEDs.getValue()[2] & 0xFF) + "," +
+                String.valueOf(cLEDs.getValue()[1] & 0xFF) + "," +
+                String.valueOf(cLEDs.getValue()[0] & 0xFF));
 
         // Set characteristic that will make these settings stick on the device
         byte[] tmp = new byte[1];

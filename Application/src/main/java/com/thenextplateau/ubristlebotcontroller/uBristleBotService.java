@@ -770,12 +770,20 @@ public class uBristleBotService extends Service {
         if (percent < 0 || percent > 100)
             return;
 
+        // Change the scale from 0-100 to 50-100
+        if (percent != 0)
+            percent = percent / 2 + 50;
+
         mLeftMotorPercent = percent;
         mLeftMotorChanged = true;
     }
     public void setRightMotor(int percent) {
         if (percent < 0 || percent > 100)
             return;
+
+        // Change the scale from 0-100 to 50-100
+        if (percent != 0)
+            percent = percent / 2 + 50;
 
         mRightMotorPercent = percent;
         mRightMotorChanged = true;

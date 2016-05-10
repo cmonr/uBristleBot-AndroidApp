@@ -738,9 +738,9 @@ public class uBristleBotService extends Service {
         if (percent < 0 || percent > 100)
             return;
 
-        // Change the scale from 0-100 to 50-100
+        // Change the scale from 0-100 to 25-100
         if (percent != 0)
-            percent = percent / 2 + 50;
+            percent = percent * 3 / 4 + 25;
 
         mLeftMotorPercent = percent;
         mMotorChanged = true;
@@ -749,9 +749,9 @@ public class uBristleBotService extends Service {
         if (percent < 0 || percent > 100)
             return;
 
-        // Change the scale from 0-100 to 50-100
+        // Change the scale from 0-100 to 25-100
         if (percent != 0)
-            percent = percent / 2 + 50;
+            percent = percent * 3 / 4 + 25;
 
         mRightMotorPercent = percent;
         mMotorChanged = true;

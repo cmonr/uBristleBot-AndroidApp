@@ -58,6 +58,11 @@ public class ControlUIActivity extends Activity {
     private static TextView batteryView;
     private static TextView rssiView;
 
+
+    // SeekBar
+    private static SeekBar leftSeekbar;
+    private static SeekBar rightSeekbar;
+
     //
     // Handle uBristleBotService connection
     //
@@ -95,6 +100,12 @@ public class ControlUIActivity extends Activity {
                     setProgress(uBristleBot.getColor()[1] * 100 / 255);
             ((SeekBar) mDialog_View.findViewById(R.id.seekbar_led_color_blue)).
                     setProgress(uBristleBot.getColor()[2] * 100 / 255);
+
+
+            // Set Seekbar values once they're setup
+            //  Motors should never be moving when the Service is connected to
+            leftSeekbar.setProgress(0);
+            rightSeekbar.setProgress(0);
         }
 
         @Override
@@ -164,12 +175,14 @@ public class ControlUIActivity extends Activity {
         //
 
         // Motor Control
-        SeekBar leftSeekbar = (SeekBar) findViewById(R.id.motor_left);
+        leftSeekbar = (SeekBar) findViewById(R.id.motor_left);
         leftSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                Log.i(TAG, "Left Motor: " + String.valueOf(progress) + "%");
-                uBristleBot.setLeftMotor(progress);
+                if (uBristleBot != null) {
+                    Log.i(TAG, "Left Motor: " + String.valueOf(progress) + "%");
+                    uBristleBot.setLeftMotor(progress);
+                }
             }
 
             @Override
@@ -182,16 +195,19 @@ public class ControlUIActivity extends Activity {
             }
         });
 
-        SeekBar rightSeekbar = (SeekBar) findViewById(R.id.motor_right);
+        rightSeekbar = (SeekBar) findViewById(R.id.motor_right);
         rightSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                Log.i(TAG, "Right Motor: " + String.valueOf(progress) + "%");
-                uBristleBot.setRightMotor(progress);
+                if (uBristleBot != null) {
+                    Log.i(TAG, "Right Motor: " + String.valueOf(progress) + "%");
+                    uBristleBot.setRightMotor(progress);
+                }
             }
 
             @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {}
+            public void onStartTrackingTouch(SeekBar seekBar) {
+            }
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
